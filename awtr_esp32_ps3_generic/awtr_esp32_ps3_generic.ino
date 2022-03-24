@@ -1,5 +1,18 @@
 #include <Ps3Controller.h>
 
+#define PWM1_ch 0
+#define PWM2_ch 1
+#define PWM3_ch 2
+#define PWM4_ch 3
+
+#define PWM_res 8
+#define PWM_freq 400
+
+
+#define IN1_gpio 22
+#define IN2_gpio 21
+#define IN3_gpio 17
+#define IN4_gpio 16
 
 const int potStrRightStart = 2; //default 0
 const int potStrRightEnd = 128; //default 128, reversed 
@@ -46,6 +59,16 @@ void setup(){
   Serial.begin(115200);
   Ps3.begin("00:12:34:56:78:9b");
   Serial.println("Ready.");
+
+  ledcAttachPin(IN1_gpio, PWM1_ch);
+  ledcAttachPin(IN2_gpio, PWM2_ch);
+  ledcAttachPin(IN3_gpio, PWM3_ch);
+  ledcAttachPin(IN4_gpio, PWM4_ch);
+
+  ledcSetup(PWM1_ch,PWM_freq,PWM_res);
+  ledcSetup(PWM1_ch,PWM_freq,PWM_res);
+  ledcSetup(PWM1_ch,PWM_freq,PWM_res);
+  ledcSetup(PWM1_ch,PWM_freq,PWM_res);
 }
 
 void loop(){
@@ -76,8 +99,36 @@ void loop(){
   sentData.speedmotorLeft = constrain(sentData.speedmotorLeft, -PWMmax, PWMmax);
   sentData.speedmotorRight = constrain(sentData.speedmotorRight, -PWMmax, PWMmax);
 
-  Serial.print(sentData.speedmotorLeft);
-  Serial.print("\t");
-  Serial.println(sentData.speedmotorRight);
+  setM2speed(sentData.speedmotorLeft);
+  setM1speed(sentData.speedmotorRight);
 
+}
+
+
+int setM1speed(int rpm) {
+  if (rpm < 0) {
+    ledcWrite(PWM1_ch, 0);
+    ledcWrite(PWM2_ch, -rpm);
+  } else if (rpm > 0) {
+    ledcWrite(PWM1_ch, rpm);
+    ledcWrite(PWM2_ch, 0);
+  } else if (rpm == 0) {
+    ledcWrite(PWM1_ch, 255);
+    ledcWrite(PWM2_ch, 255);
+  }
+  return 0;
+}
+
+int setM2speed(int rpm) {
+  if (rpm < 0) {
+    ledcWrite(PWM3_ch, 0);
+    ledcWrite(PWM4_ch, -rpm);
+  } else if (rpm > 0) {
+    ledcWrite(PWM3_ch, rpm);
+    ledcWrite(PWM4_ch, 0);
+  } else if (rpm == 0) {
+    ledcWrite(PWM3_ch, 255);
+    ledcWrite(PWM4_ch, 255);
+  }
+  return 0;
 }

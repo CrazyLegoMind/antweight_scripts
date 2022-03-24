@@ -4,11 +4,11 @@
 
 //motori
 
-const int AIN1 = A2;//PHASE
-const int AIN2 = A3;//PHASE
+const int AIN1 = A0;//PHASE
+const int AIN2 = A1;//PHASE
 const int PWMA = 6;
-const int BIN1 = A5;//PHASE
-const int BIN2 = A4;//PHASE
+const int BIN1 = A3;//PHASE
+const int BIN2 = A2;//PHASE
 const int PWMB = 5;
 
 //arma

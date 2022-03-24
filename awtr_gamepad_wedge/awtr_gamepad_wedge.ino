@@ -140,15 +140,19 @@ void loop() {
   */
   int M1 = forward + back + right - left;
   int M2 = forward + back - right + left;
+  M1 = constrain(M1, -PWMmax, PWMmax);
+  M2 = constrain(M2, -PWMmax, PWMmax);
+  // trims
+  M2 =map(M2, -PWMmax, PWMmax, -180, 180);
+  
   sentData.speedmotorWeapon = constrain(wpnSpeed, 0, PWMmax);
   //recorrect the data not to have more than 255PWM while non pivot-steering
-  sentData.speedmotorRight = constrain(M2, -PWMmax, PWMmax);
-  sentData.speedmotorLeft = constrain(M1, -PWMmax, PWMmax);
+  sentData.speedmotorRight = M2;
+  sentData.speedmotorLeft = M1;
 
   if (!radio.write( &sentData, sizeof(sentData) )) {
     //Serial.println("failed");
   }
-
   /*
     Serial.print(wpnValue);
     Serial.print("\t");

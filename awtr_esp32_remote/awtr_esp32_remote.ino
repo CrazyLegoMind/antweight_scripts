@@ -66,11 +66,11 @@ const int leverPot = 34;
 const int modePot = 39;
 
 const int rightBtn = 0;
-const int leftBtn = 2;
+const int leftBtn = 12;
 const int topBtn = 4;
 const int lowSwitch = 32;
 const int topSwitch = 25;
-const int ledPin = 12;
+const int ledPin = 2;
 
 //various stick/potentiometers limits
 //this is useful if:

@@ -50,8 +50,8 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 // Callback when data is received
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   memcpy(&recData, incomingData, sizeof(recData));
-  Serial.print("Bytes received: ");
-  Serial.println(len);
+  //Serial.print("Bytes received: ");
+  //Serial.println(len);
   //salva dati in var globali
 }
 
@@ -70,7 +70,7 @@ const int leftBtn = 2;
 const int topBtn = 4;
 const int lowSwitch = 32;
 const int topSwitch = 25;
-
+const int ledPin = 12;
 
 //various stick/potentiometers limits
 //this is useful if:
@@ -147,7 +147,8 @@ void setup() {
   pinMode(topBtn, INPUT_PULLUP);
   pinMode(lowSwitch, INPUT_PULLUP);
   pinMode(topSwitch, INPUT_PULLUP);
-
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin,HIGH);
 
   Serial.begin(115200);
 
@@ -212,7 +213,6 @@ void loop() {
   if (strValue < debug_min) {
     debug_min = strValue;
   }
-  Serial.print(debug_min);
   //read btns values
   bool setMode = !digitalRead(lowSwitch);
 
@@ -416,13 +416,13 @@ void loop() {
     if (result == ESP_OK) {
       //Serial.println("Sent with success");
     } else {
-      Serial.println("Error sending the data");
+      //Serial.println("Error sending the data");
     }
   }
 
 
 
-  ///* DEBUG PACKET
+  /* DEBUG PACKET
     Serial.print("LPWM: ");
     Serial.print(sentData.speedmotorLeft);
     Serial.print("\t");
@@ -434,7 +434,7 @@ void loop() {
 
     //*/
 
-  /*DEBUG INPUT
+  ///*DEBUG INPUT
   Serial.print("accpot: ");
   Serial.print(accValue);
   Serial.print("\t");

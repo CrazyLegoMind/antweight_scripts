@@ -3,9 +3,8 @@
 #include <PWMServo.h>
 
 //motori
-
-const int AIN1 = A0;//PHASE
-const int AIN2 = A1;//PHASE
+const int AIN1 = A1;//PHASE
+const int AIN2 = A0;//PHASE
 const int PWMA = 6;
 const int BIN1 = A3;//PHASE
 const int BIN2 = A2;//PHASE
@@ -76,8 +75,8 @@ void loop() {
       Last_Data_Time = millis();
       FailSafe = false;
     }
-    setMBspeed(sentData.speedmotorLeft);
-    setMAspeed(sentData.speedmotorRight);
+    setMAspeed(sentData.speedmotorLeft);
+    setMBspeed(sentData.speedmotorRight);
     servoarma.write(sentData.Angle);
 
   }else{

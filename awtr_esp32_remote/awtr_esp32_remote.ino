@@ -35,7 +35,8 @@ int rf_channel =76;
 //MAC robot hinge  C8:C9:A3:CB:33:F8
 //MAC robot grab    C8:C9:A3:CB:70:54
 uint8_t hingeAddress[] = {0xC8, 0xC9, 0xA3, 0xCB, 0x33, 0xF8};
-uint8_t egrabAddress[] = {0xC8, 0xC9, 0xA3, 0xCB, 0x70, 0x54};
+uint8_t grabAddress[] = {0xC8, 0xC9, 0xA3, 0xCB, 0x70, 0x54};
+uint8_t currentAddress[] = {0xC8, 0xC9, 0xA3, 0xCB, 0x70, 0x54};
 String success;
 
 esp_now_peer_info_t peerInfo;
@@ -144,6 +145,7 @@ int PWMmax = 255;
 int expoMax = 190; //exp will be this/100
 int analogReadMax = 1023;
 int analogRes = 10;
+int wpn_range = 1023;
 
 //var that will be stored and retreived from
 //eprom mem
@@ -197,7 +199,18 @@ void setup() {
 
   //load_values()
 
-
+  Serial.println("mem READ");
+  Serial.print("angle_act: ");
+  Serial.print(activeAngle);
+  Serial.print(" -- angle_rest: ");
+  Serial.print(restAngle);
+  Serial.print(" -- wpn_acc: ");
+  Serial.print(wpnAccel);
+  Serial.print(" -- str_exp: ");
+  Serial.print(strExpoalpha);
+  Serial.print(" -- acc_exp: ");
+  Serial.println(accExpoalpha);
+  sentData.weaponStrenght = 0;
 
 
   //TODO robot select on initalization
@@ -212,16 +225,19 @@ void setup() {
       activeAngle = 100;
       restAngle = 33;
       break;
-    case 1: //grab esp
+    case 1: //ardu grab
+      Serial.println("ARDU GRAB BOT");
+      current_bot = GRAB;
+      current_addr = WRITE_ADDR_GRAB;
+      break;
+    case 2: //flipper
     Serial.println("FLIPPER BOT");
       current_bot = FLIP;
       rev_str = true;
       current_addr = WRITE_ADDR_FLIP;
       rf_channel = 85;
       break;
-     
-      break;
-    case 2: //flipper
+    case 3: // wedge bot
     Serial.println("WEDGE BOT");
       current_bot = WEDG;
       rev_str = false;
@@ -229,19 +245,12 @@ void setup() {
       activeAngle = 180;
       restAngle = 83;
       break;
-     
-    case 3: // wedge bot
-     Serial.println("EGRAB BOT");
+    case 4://grab esp
+    Serial.println("EGRAB BOT");
       wifi_remote = true;
       current_bot = EGRAB;
       activeAngle = 1023;
       restAngle = 435;
-      break;
-    case 4://grab ardu
-    
-      Serial.println("ARDU GRAB BOT");
-      current_bot = GRAB;
-      current_addr = WRITE_ADDR_GRAB;
       break;
     default:
       break;
@@ -260,11 +269,7 @@ void setup() {
     }
     esp_now_register_send_cb(OnDataSent);
     Serial.println(current_bot== HING);
-    if(current_bot== HING){
-      memcpy(peerInfo.peer_addr, hingeAddress, 6);
-    }else{
-      memcpy(peerInfo.peer_addr, egrabAddress, 6);
-    }
+    memcpy(peerInfo.peer_addr, current_bot == HING ? hingeAddress : grabAddress, 6);
     peerInfo.channel = 0;
     peerInfo.encrypt = false;
     if (esp_now_add_peer(&peerInfo) != ESP_OK) {
@@ -481,21 +486,17 @@ void loop() {
     }
   }
 
-  if (!wifi_remote) {
+  if (wifi_remote) {
     if (!radio.write( &sentData, sizeof(sentData) )) {
       Serial.println(F("failed"));
     }
   } else {
-    esp_err_t result = -1;
-    if(current_bot == EGRAB){
-      result = esp_now_send(egrabAddress, (uint8_t *) &sentData, sizeof(sentData));
-    }else{
-      result = esp_now_send(hingeAddress, (uint8_t *) &sentData, sizeof(sentData));
-     }
+    esp_err_t result = esp_now_send(currentAddress, (uint8_t *) &sentData, sizeof(sentData));
+
     if (result == ESP_OK) {
       //Serial.println("Sent with success");
     } else {
-      Serial.println("Error sending the data");
+      //Serial.println("Error sending the data");
     }
   }
 

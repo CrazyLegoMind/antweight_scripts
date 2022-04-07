@@ -5,22 +5,24 @@
 #include <WiFi.h>
 
 
-#define PWM1_ch 0
-#define PWM2_ch 1
-#define PWM3_ch 2
-#define PWM4_ch 3
+#define PWM1_ch 12
+#define PWM2_ch 13
+#define PWM3_ch 14
+#define PWM4_ch 15
 
 #define PWM_res 8
 #define PWM_freq 400
-
 
 #define IN1_gpio 21
 #define IN2_gpio 22
 #define IN3_gpio 17
 #define IN4_gpio 16
 
-//MAC robot hinge  C8:C9:A3:CB:33:F8
-//MAC robot grab    C8:C9:A3:CB:70:54
+Servo weapServo;
+
+int weapServoPin = 26;
+
+//MAC robot C8:C9:A3:CB:33:F8
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 typedef struct {
@@ -80,9 +82,13 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   lastPacketMillis = millis();
 }
 void setup() {
-  Serial.begin(115200);
+  //Serial.begin(115200);
   //Serial.println("Ready.");
-
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
+  
   ledcAttachPin(IN1_gpio, PWM1_ch);
   ledcAttachPin(IN2_gpio, PWM2_ch);
   ledcAttachPin(IN3_gpio, PWM3_ch);
@@ -92,10 +98,11 @@ void setup() {
   ledcSetup(PWM2_ch, PWM_freq, PWM_res);
   ledcSetup(PWM3_ch, PWM_freq, PWM_res);
   ledcSetup(PWM4_ch, PWM_freq, PWM_res);
-  
+  weapServo.setPeriodHertz(50);    // standard 50 hz servo
+  weapServo.attach(weapServoPin, 500, 2400); 
    // Set device as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
-  Serial.println(WiFi.macAddress());
+
   // Init ESP-NOW
   if (esp_now_init() != ESP_OK) {
     //Serial.println("Error initializing ESP-NOW");
@@ -130,9 +137,11 @@ void loop() {
   if(failsafe){
     setM2speed(0);
     setM1speed(0);
+    weapServo.write(90);
   }else{
     setM2speed(recRpwm);
     setM1speed(recLpwm);
+    weapServo.write(recAngle);
   }
   delay(10);
 }

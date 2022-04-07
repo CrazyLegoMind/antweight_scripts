@@ -1,9 +1,5 @@
-#include <ESP32Servo.h>
-#include <ESP32Tone.h>
-#include <ESP32PWM.h>
 #include <esp_now.h>
 #include <WiFi.h>
-
 
 #define PWM1_ch 0
 #define PWM2_ch 1
@@ -14,39 +10,32 @@
 #define PWM_freq 400
 
 
-#define IN1_gpio 21
-#define IN2_gpio 22
+#define IN1_gpio 22
+#define IN2_gpio 21
 #define IN3_gpio 17
 #define IN4_gpio 16
 
-//MAC robot hinge  C8:C9:A3:CB:33:F8
-//MAC robot grab    C8:C9:A3:CB:70:54
+//MAC robot C8:C9:A3:CB:33:F8
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 typedef struct {
-  short speedmotorLeft;
-  short speedmotorRight;
-  short weaponStrenght;
-  char Fire;
-  short Angle;
-  short packetArg1;
+  int speedmotorLeft;
+  int speedmotorRight;
+  int weaponStrenght;
+  bool Fire;
+  int Angle;
+  int weaponArg1;
 }
 packet_t;
 
-
 packet_t recData;
-
-bool failsafe = false;
-unsigned long failsafeMaxMillis = 200;
-unsigned long lastPacketMillis = 0;
-unsigned long currentWaitMillis = 0;
 
 int recLpwm = 0;
 int recRpwm = 0;
 int recWpn = 0;
 bool recFire = false;
 int recAngle = 0;
-int recpckArg1 = 0;
+int recWpnArg1 = 0;
 
 // Variable to store if sending data was successful
 String success;
@@ -55,8 +44,8 @@ esp_now_peer_info_t peerInfo;
 
 // Callback when data is sent
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  //Serial.print("\r\nLast Packet Send Status:\t");
-  //Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  Serial.print("\r\nLast Packet Send Status:\t");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
   if (status == 0) {
     success = "Delivery Success :)";
   }
@@ -68,20 +57,19 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 // Callback when data is received
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   memcpy(&recData, incomingData, sizeof(recData));
-  //Serial.print("Bytes received: ");
-  //Serial.println(len);
+  Serial.print("Bytes received: ");
+  Serial.println(len);
   //salva dati in var globali
   recLpwm = recData.speedmotorLeft;
   recRpwm = recData.speedmotorRight;
   recWpn = recData.weaponStrenght;
   recFire = recData.Fire;
   recAngle = recData.Angle;
-  recpckArg1 = recData.packetArg1;
-  lastPacketMillis = millis();
+  recWpnArg1 = recData.weaponArg1;
 }
 void setup() {
   Serial.begin(115200);
-  //Serial.println("Ready.");
+  Serial.println("Ready.");
 
   ledcAttachPin(IN1_gpio, PWM1_ch);
   ledcAttachPin(IN2_gpio, PWM2_ch);
@@ -89,16 +77,16 @@ void setup() {
   ledcAttachPin(IN4_gpio, PWM4_ch);
 
   ledcSetup(PWM1_ch, PWM_freq, PWM_res);
-  ledcSetup(PWM2_ch, PWM_freq, PWM_res);
-  ledcSetup(PWM3_ch, PWM_freq, PWM_res);
-  ledcSetup(PWM4_ch, PWM_freq, PWM_res);
+  ledcSetup(PWM1_ch, PWM_freq, PWM_res);
+  ledcSetup(PWM1_ch, PWM_freq, PWM_res);
+  ledcSetup(PWM1_ch, PWM_freq, PWM_res);
   
    // Set device as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
-  Serial.println(WiFi.macAddress());
+
   // Init ESP-NOW
   if (esp_now_init() != ESP_OK) {
-    //Serial.println("Error initializing ESP-NOW");
+    Serial.println("Error initializing ESP-NOW");
     return;
   }
 
@@ -113,7 +101,7 @@ void setup() {
   
   // Add peer        
   if (esp_now_add_peer(&peerInfo) != ESP_OK){
-    //Serial.println("Failed to add peer");
+    Serial.println("Failed to add peer");
     return;
   }
   // Register for a callback function that will be called when data is received
@@ -121,20 +109,10 @@ void setup() {
 }
 
 void loop() {
-  failsafe = false;
-  unsigned long current_time = millis();
-  if(current_time - lastPacketMillis > failsafeMaxMillis){
-    failsafe = true;
-    //Serial.println(current_time - lastPacketMillis);
-  }
-  if(failsafe){
-    setM2speed(0);
-    setM1speed(0);
-  }else{
-    setM2speed(recRpwm);
-    setM1speed(recLpwm);
-  }
-  delay(10);
+  
+  setM2speed(recLpwm);
+  setM1speed(recRpwm);
+
 }
 
 

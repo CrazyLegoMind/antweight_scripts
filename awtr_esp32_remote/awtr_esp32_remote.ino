@@ -5,13 +5,15 @@
 #include <esp_now.h>
 #include <WiFi.h>
 
+#define CUSTOM_PIN_LAYOUT
+
 //datas that will be sent to the receiver
 typedef struct {
   short speedmotorLeft;
   short speedmotorRight;
   short weaponStrenght;
   char Fire;
-  short Angle;
+  short weaponArg;
   short weaponAccel;
 }
 packet_t;
@@ -30,8 +32,9 @@ uint64_t current_addr = WRITE_ADDR_GRAB;
 
 
 //---------------------------------------ESP_NOW Variables
-//MAC robot C8:C9:A3:CB:33:F8
-uint8_t broadcastAddress[] = {0xC8, 0xC9, 0xA3, 0xCB, 0x33, 0xF8};
+//MAC robot hinge  C8:C9:A3:CB:33:F8
+//MAC robot grab    C8:C9:A3:CB:70:54
+uint8_t broadcastAddress[] = {0xC8, 0xC9, 0xA3, 0xCB, 0x70, 0x54};
 String success;
 
 esp_now_peer_info_t peerInfo;
@@ -58,18 +61,22 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
 
 
 
+//---------------------------------------HARDWARE DEPENDANT Variables
+// one ifdef case per hardware to speed up modularity of the code
+
+#ifdef CUSTOM_PIN_LAYOUT //GRAY REMOTE
 
 // stick and trims potentiometers input pins
-const int steerPot = 35;
-const int accPot = 33;
+const int steerPot = 33;
+const int accPot = 35;
 const int leverPot = 34;
 const int modePot = 39;
 
-const int rightBtn = 0;
-const int leftBtn = 12;
-const int topBtn = 4;
-const int lowSwitch = 32;
-const int topSwitch = 25;
+const int leftBtn = 25;
+const int rightBtn = 32;
+const int topBtn = 12;
+const int lowSwitch = 4;
+const int topSwitch = 0;
 const int ledPin = 2;
 
 //various stick/potentiometers limits
@@ -78,7 +85,38 @@ const int ledPin = 2;
 //tx potentiometers don't travel from 1023 to 0
 //-if their center positon is not 512
 //-their center position has some play so it is a range of values
-// instead of a single vaue
+// instead of a single value or their end position has ome play
+
+const int potStrRightEnd = 1020; //default 0, reversed 1024
+const int potStrLeftEnd = 3; //default 1024, reversed 0
+
+const int potAccForwardEnd = 3; // default 0, reversed 1024
+const int potAccBackEnd = 1020; //default 1024, reversed 0
+
+const int potStrRightStart = 455; //default 512
+const int potStrLeftStart = 448; //default 512
+
+const int potAccForwardStart = 487; //default 512
+const int potAccBackStart = 499; //default 512
+
+const int potLevUpStart = 420; //default 512
+const int potLevDownStart = 500; //default 512
+
+const int potLevUpEnd = 280; //default 0, reversed 1024
+const int potLevDownEnd = 645; //default 1024, reversed 0
+#else // GREEN and DEV REMOTE
+//standard remote
+const int steerPot = 35;
+const int accPot = 33;
+const int leverPot = 34;
+const int modePot = 39;
+
+const int rightBtn = 0;
+const int leftBtn = 2;
+const int topBtn = 4;
+const int lowSwitch = 32;
+const int topSwitch = 25;
+const int ledPin = 12;
 
 const int potStrRightEnd = 10; //default 0, reversed 1024
 const int potStrLeftEnd = 4085; //default 1024, reversed 0
@@ -98,7 +136,15 @@ const int potLevDownStart = 1900; //default 512
 
 const int potLevUpEnd = 1030; //default 0, reversed 1024
 const int potLevDownEnd = 2500; //default 1024, reversed 0
+#endif
 
+
+//customisable vars
+int PWMmax = 255;
+int expoMax = 190; //exp will be this/100
+int analogReadMax = 1023;
+int analogRes = 10;
+int wpn_range = 1023;
 
 //var that will be stored and retreived from
 //eprom mem
@@ -106,13 +152,7 @@ int restAngle = 20;
 int activeAngle = 1023;
 int strExpoalpha = 115;
 int accExpoalpha = 115;
-int wpnAccel = 2;
-
-
-//customisable vars
-int PWMmax = 255;
-int expoMax = 190; //exp will be this/100
-int analogReadMax = 4095;
+int wpnAccel = 8;
 
 //variables for the sketch
 int right = 0;
@@ -120,15 +160,16 @@ int left = 0;
 int forward = 0;
 int back = 0;
 int wpn = 0;
-int wpn_range = 1023;
 int strPWMmax = PWMmax;
 int accPWMmax = PWMmax;
 int modeValue = 0;
 int address = 0;
 bool memSetted = true;
 int rev_str = false;
-int debug_min = 4095;
+int debug_min = 1023;
 int debug_max = 0;
+float leverValue_f = 0.0;
+int leverValue = 0;
 
 enum bot_control {
   GRAB,
@@ -141,7 +182,8 @@ int bot_current = ESPREC;
 bool wpnSafetyCeck = true;
 
 void setup() {
-  //store_values(); //only to initialize
+  //store_values(); // uncomment only to initialize mem
+  analogReadResolution(analogRes);
   pinMode(rightBtn, INPUT_PULLUP);
   pinMode(leftBtn, INPUT_PULLUP);
   pinMode(topBtn, INPUT_PULLUP);
@@ -167,7 +209,7 @@ void setup() {
   Serial.println(accExpoalpha);
   sentData.weaponStrenght = 0;
 
-
+  //TODO robot select on initalization
 
   //---------------------------------------RF24 Setup
   //radio.begin();
@@ -175,31 +217,21 @@ void setup() {
   //radio.openWritingPipe(current_addr);
 
   //---------------------------------------ESP NOW setup
-  // Set device as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
-
-  // Init ESP-NOW
   if (esp_now_init() != ESP_OK) {
     Serial.println("Error initializing ESP-NOW");
     return;
   }
-
-  // Once ESPNow is successfully Init, we will register for Send CB to
-  // get the status of Trasnmitted packet
   esp_now_register_send_cb(OnDataSent);
-
-  // Register peer
   memcpy(peerInfo.peer_addr, broadcastAddress, 6);
   peerInfo.channel = 0;
   peerInfo.encrypt = false;
-
-  // Add peer
   if (esp_now_add_peer(&peerInfo) != ESP_OK) {
     Serial.println("Failed to add peer");
     return;
   }
-  // Register for a callback function that will be called when data is received
   esp_now_register_recv_cb(OnDataRecv);
+  
 }
 
 
@@ -208,11 +240,26 @@ void loop() {
   //read pots values
   int strValue = analogRead(steerPot);
   int accValue = analogRead(accPot);
-  int leverValue = analogRead(leverPot);
+  int templeverValue = analogRead(leverPot);
   modeValue = analogRead(modePot);
-  if (strValue < debug_min) {
-    debug_min = strValue;
+
+  leverValue_f = leverValue*0.8 +  templeverValue*0.2;
+  leverValue = (int)leverValue_f;
+  
+  int check_debug=modeValue;
+  if (check_debug > debug_max) {
+    debug_max = check_debug ;
   }
+  if (check_debug < debug_min) {
+    debug_min = check_debug;
+  }
+  /*
+  Serial.print(debug_max);
+  Serial.print("\t");
+  Serial.print(debug_min);
+  Serial.print("\t");
+  Serial.println(debug_max-debug_min);
+  */
   //read btns values
   bool setMode = !digitalRead(lowSwitch);
 
@@ -256,9 +303,19 @@ void loop() {
   }
 
   //----------------------------------------------------WEAPON CODE
-  wpn = map(leverValue, potLevDownEnd, potLevUpEnd, 0, wpn_range);
-  wpn = constrain(wpn, 0, wpn_range);
 
+  if (rightValue) {
+    sentData.weaponArg = 100;
+    sentData.Fire = true;
+  } else {
+    wpn = map(leverValue, potLevUpEnd, potLevDownEnd, 0, wpn_range);
+  wpn = constrain(wpn, 0, wpn_range);
+  sentData.weaponArg = wpn;
+  }
+
+  sentData.weaponStrenght = PWMmax;
+  sentData.weaponAccel = 0;
+  
   if (safetySet) {
     //FIX MSSING POT
     /*
@@ -306,18 +363,7 @@ void loop() {
     }
   }
 
-  if (rightValue) {
-    sentData.Angle = activeAngle;
-    sentData.Fire = true;
-  } else {
-    wpn = map(leverValue, potLevDownEnd, potLevDownStart,  activeAngle, restAngle);
-    wpn = constrain(wpn, restAngle, activeAngle);
-    sentData.Angle = wpn;
-    sentData.Fire = false;
-  }
-
-  sentData.weaponStrenght = PWMmax;
-  sentData.weaponAccel = 0;
+  
 
 
   //----------------------------------------------------MOTOR CODE
@@ -395,6 +441,7 @@ void loop() {
   //recorrect the data not to have more than max +PWM while non pivot-steering
   sentData.speedmotorLeft = left_pwm;
   sentData.speedmotorRight = right_pwm;
+  
 
 
   if (!storeValue) {
@@ -422,7 +469,7 @@ void loop() {
 
 
 
-  /* DEBUG PACKET
+  ///* DEBUG PACKET
     Serial.print("LPWM: ");
     Serial.print(sentData.speedmotorLeft);
     Serial.print("\t");
@@ -430,11 +477,11 @@ void loop() {
     Serial.print(sentData.speedmotorRight);
     Serial.print("\t");
     Serial.print("WPN: ");
-    Serial.println(sentData.Angle);
+    Serial.println(sentData.weaponArg);
 
     //*/
 
-  ///*DEBUG INPUT
+  /*DEBUG INPUT
   Serial.print("accpot: ");
   Serial.print(accValue);
   Serial.print("\t");
@@ -446,13 +493,13 @@ void loop() {
   Serial.print("leverpot");
   Serial.print(leverValue);
   Serial.print("\t");
-
-  Serial.print("BR: ");
-  Serial.print(rightValue);
-  Serial.print("\t");
-
+  
   Serial.print("BL: ");
   Serial.print(leftValue);
+  Serial.print("\t");
+  
+  Serial.print("BR: ");
+  Serial.print(rightValue);
   Serial.print("\t");
 
   Serial.print("BT: ");
@@ -460,11 +507,11 @@ void loop() {
   Serial.print("\t");
 
 
-  Serial.print("Sw1: ");
-  Serial.print(radioSet);
+  Serial.print("TSW: ");
+  Serial.print(storeValue);
   Serial.print("\t");
 
-  Serial.print("sW2: ");
+  Serial.print("BSW: ");
   Serial.print(setMode);
   Serial.print("\t");
 

@@ -215,7 +215,6 @@ void setup() {
     case 1: //grab esp
     Serial.println("FLIPPER BOT");
       current_bot = FLIP;
-      rev_str = true;
       current_addr = WRITE_ADDR_FLIP;
       rf_channel = 85;
       break;
@@ -224,7 +223,6 @@ void setup() {
     case 2: //flipper
     Serial.println("WEDGE BOT");
       current_bot = WEDG;
-      rev_str = false;
       current_addr = WRITE_ADDR_WEDG;
       activeAngle = 180;
       restAngle = 83;
@@ -246,7 +244,7 @@ void setup() {
     default:
       break;
   }
-  //---------------------------------------RF24 Setup
+  
   //radio.begin();
   //radio.setPALevel(RF24_PA_LOW);
   //radio.openWritingPipe(current_addr);
@@ -272,42 +270,14 @@ void setup() {
       return;
     }
     esp_now_register_recv_cb(OnDataRecv);
+
+  //---------------------------------------RF24 Setup
   } else {
     radio.begin();
     radio.setPALevel(RF24_PA_LOW);
     radio.openWritingPipe(current_addr);
     radio.setChannel(rf_channel);
   }
-  /*
-    if (radioSet) {
-    //Serial.print("serring radio...");
-    //Serial.println(current_bot);
-    if (modeValue < 300 && current_bot != GRAB) {
-      current_bot = GRAB;
-      rev_str = false;
-      current_addr = WRITE_ADDR_GRAB;
-      radio.setChannel(76);
-      radio.openWritingPipe(current_addr);
-    }
-    if (modeValue > 301 && modeValue < 600 && current_bot != FLIP) {
-      current_bot = FLIP;
-      rev_str = true;
-      current_addr = WRITE_ADDR_FLIP;
-      radio.setChannel(85);
-      radio.openWritingPipe(current_addr);
-
-    }
-    if (modeValue > 601 && current_bot != WEDG) {
-      current_bot = WEDG;
-      rev_str = false;
-      current_addr = WRITE_ADDR_WEDG;
-      activeAngle = 166;
-      restAngle = 74;
-      radio.setChannel(76);
-      radio.openWritingPipe(current_addr);
-
-    }
-    }*/
 }
 
 
@@ -338,11 +308,7 @@ void loop() {
   //*/
   //read btns values
   bool setMode = false;//!digitalRead(lowSwitch);
-
-
   bool storeValue = false;//!digitalRead(topSwitch);
-  bool radioSet = false;//!digitalRead(topSwitch);
-
   bool rightValue = !digitalRead(rightBtn);
   bool leftValue = !digitalRead(leftBtn);
   bool topValue = !digitalRead(topBtn);
@@ -365,6 +331,7 @@ void loop() {
     wpn = map(leverValue, potLevUpEnd, potLevDownEnd, restAngle, activeAngle);
     wpn = constrain(wpn, restAngle, activeAngle);
     sentData.weaponArg = wpn;
+    sentData.Fire = false;
   }
   if(topValue){
     sentData.weaponArg = restAngle;
@@ -456,6 +423,8 @@ void loop() {
     //*/
 
   ///* uncomment here if you want car-like steering direction
+  
+  //recorrect the data not to have more than max +PWM while non pivot-steering
   int left_pwm = constrain(forward + back + right - left, -PWMmax, PWMmax);
   int right_pwm = constrain(forward + back - right + left, -PWMmax, PWMmax);
 
@@ -466,7 +435,7 @@ void loop() {
     right_pwm = tmp;
   }
 
-  //recorrect the data not to have more than max +PWM while non pivot-steering
+  
   sentData.speedmotorLeft = left_pwm;
   sentData.speedmotorRight = right_pwm;
 
@@ -509,7 +478,10 @@ void loop() {
     Serial.print(sentData.speedmotorRight);
     Serial.print("\t");
     Serial.print("WPN: ");
-    Serial.println(sentData.weaponArg);
+    Serial.print(sentData.weaponArg);
+    Serial.print("\t");
+    Serial.print("FIRE: ");
+    Serial.println((int)sentData.Fire);
 
     //*/
 

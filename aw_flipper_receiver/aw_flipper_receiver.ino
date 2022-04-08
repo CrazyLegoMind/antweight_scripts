@@ -13,9 +13,9 @@ int WeaponAngle = 0;
 
 const int M3stop = 4;
 bool loaded = false;
+bool released = false;
 
-
-RF24 radio(7, 8);
+RF24 radio(7, 8);                        
 
 typedef struct {
   int speedmotor1;
@@ -23,6 +23,7 @@ typedef struct {
   int speedmotor3;
   bool Fire;
   int Angle;
+  int weaponArg;
 }
 A_t;
 
@@ -38,7 +39,7 @@ const uint8_t channel =85;
 const uint64_t READ_ADDR = 0xF71993500B07;
 
 void setup() {
-  //Serial.begin(9600);
+  //Serial.begin(115200);
   //Serial.println("Serial Ready");
 
   //esc motori
@@ -65,14 +66,15 @@ void setup() {
 
 void loop() {
   loaded = !digitalRead(M3stop);
+  released = !loaded;
   if (radio.available()) {
     while (radio.available()) {
       radio.read( &sentData, sizeof(sentData) );
       Last_Data_Time = millis();
       FailSafe = false;
     }
-    setM1speed(sentData.speedmotor1);
-    setM2speed(sentData.speedmotor2);
+    setM2speed(sentData.speedmotor1);
+    setM1speed(sentData.speedmotor2);
     handle_flipper(sentData.Fire,true);
   }
   
@@ -98,6 +100,8 @@ void loop() {
     Serial.print(radio.available());
     Serial.print("STOP: ");
     Serial.print(loaded);
+    Serial.print("fire: ");
+    Serial.print(sentData.Fire);
     Serial.print("PWM1: ");
     Serial.print(sentData.speedmotor1);
     Serial.print("PWM2: ");
@@ -153,14 +157,11 @@ void handle_flipper(bool fire,bool load){
   if(load){
     if(loaded){
       if(fire){
-        Serial.println("firing");
         setM3speed(255);
       }else{
-        Serial.println("holding");
         setM3speed(0);
       }
    }else{
-    Serial.println("reloading");
     setM3speed(255);
    }
     
@@ -177,5 +178,12 @@ void handle_flipper(bool fire,bool load){
 void failsafe(){
   setM1speed(0);
   setM2speed(0);
-  handle_flipper(sentData.Fire,false);
+  if(!loaded){
+    released = true;
+  }
+  if(!released){
+    handle_flipper(sentData.Fire,false);
+  }else{
+    setM3speed(0);
+  }
 }

@@ -85,8 +85,8 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   lastPacketMillis = millis();
 }
 void setup() {
-  //Serial.begin(115200);
-  //Serial.println("Ready.");
+//  Serial.begin(115200);
+//  Serial.println("Ready.");
   analogReadResolution(10);
   ledcAttachPin(IN1_gpio, PWM1_ch);
   ledcAttachPin(IN2_gpio, PWM2_ch);
@@ -139,7 +139,8 @@ void loop() {
   if(failsafe){
     setM2speed(0);
     setM1speed(0);
-    setM3speed(0);
+//    setM3speed(0);
+    seek_angle_smooth(512, 8);
   }else{
     setM2speed(recRpwm);
     setM1speed(recLpwm);
@@ -192,8 +193,9 @@ int setM3speed(int rpm) {
 }
 
 int seek_angle_smooth(int target_pos,int accel) {
-  if (target_pos < 0 || target_pos > 1023) return 1;
+  if (target_pos < 0 || target_pos > 830) return 1;
   int wpn_current_pos = analogRead(weapPot);
+//  Serial.println("Pot: " + (String) wpn_current_pos);
   unsigned long wpn_current_time = millis();
   float pos_delta = wpn_current_pos - wpn_prev_pos;
   unsigned long time_delta = wpn_current_time - wpn_prev_time;

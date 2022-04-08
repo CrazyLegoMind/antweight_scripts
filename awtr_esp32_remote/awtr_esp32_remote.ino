@@ -149,6 +149,7 @@ int analogRes = 10;
 //eprom mem
 int restAngle = 20;
 int activeAngle = 1023;
+int lowAngle = 0;
 int strExpoalpha = 115;
 int accExpoalpha = 115;
 int wpnAccel = 8;
@@ -193,7 +194,7 @@ void setup() {
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, HIGH);
 
-  Serial.begin(115200);
+//  Serial.begin(115200);
 
   //load_values()
 
@@ -211,12 +212,14 @@ void setup() {
       current_bot = HING;
       activeAngle = 100;
       restAngle = 33;
+      lowAngle = restAngle;
       break;
     case 1: //grab esp
     Serial.println("FLIPPER BOT");
       current_bot = FLIP;
       current_addr = WRITE_ADDR_FLIP;
       rf_channel = 85;
+      
       break;
      
       break;
@@ -226,20 +229,23 @@ void setup() {
       current_addr = WRITE_ADDR_WEDG;
       activeAngle = 180;
       restAngle = 83;
+      lowAngle = 30;
       break;
      
     case 3: // wedge bot
      Serial.println("EGRAB BOT");
       wifi_remote = true;
       current_bot = EGRAB;
-      activeAngle = 1023;
-      restAngle = 435;
+      activeAngle = 830;
+      restAngle = 0;
+      lowAngle = restAngle;
       break;
     case 4://grab ardu
     
       Serial.println("ARDU GRAB BOT");
       current_bot = GRAB;
       current_addr = WRITE_ADDR_GRAB;
+      lowAngle = restAngle;
       break;
     default:
       break;
@@ -283,6 +289,9 @@ void setup() {
 
 
 void loop() {
+//  int robot_n = analogRead(modePot)/ 205;
+//  Serial.println(robot_n);
+  
   //read pots values
   int strValue = analogRead(steerPot);
   int accValue = analogRead(accPot);
@@ -323,18 +332,19 @@ void loop() {
 
 
   //----------------------------------------------------WEAPON CODE
+    sentData.weaponArg = restAngle;
 
   if (rightValue) {
-    sentData.weaponArg = activeAngle;
+    sentData.weaponArg = restAngle;
     sentData.Fire = true;
-  } else {
-    wpn = map(leverValue, potLevUpEnd, potLevDownEnd, restAngle, activeAngle);
-    wpn = constrain(wpn, restAngle, activeAngle);
+  } else if (leftValue) {
+    wpn = map(leverValue, potLevUpEnd, potLevDownEnd, activeAngle, restAngle);
+    wpn = constrain(wpn, lowAngle, activeAngle);
     sentData.weaponArg = wpn;
     sentData.Fire = false;
   }
   if(topValue){
-    sentData.weaponArg = restAngle;
+    sentData.weaponArg = activeAngle;
   }
 
   sentData.weaponStrenght = PWMmax;
@@ -470,7 +480,7 @@ void loop() {
 
 
 
-  ///* DEBUG PACKET
+  /* DEBUG PACKET
     Serial.print("LPWM: ");
     Serial.print(sentData.speedmotorLeft);
     Serial.print("\t");

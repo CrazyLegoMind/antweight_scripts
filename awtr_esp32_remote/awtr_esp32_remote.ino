@@ -5,7 +5,7 @@
 #include <esp_now.h>
 #include <WiFi.h>
 
-//#define CUSTOM_PIN_LAYOUT
+#define CUSTOM_PIN_LAYOUT
 
 //datas that will be sent to the receiver
 typedef struct {
@@ -333,6 +333,7 @@ void loop() {
 
   //----------------------------------------------------WEAPON CODE
     sentData.weaponArg = restAngle;
+    sentData.Fire = false;
 
   if (rightValue) {
     sentData.weaponArg = restAngle;

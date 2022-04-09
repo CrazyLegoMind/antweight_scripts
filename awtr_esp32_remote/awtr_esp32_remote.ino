@@ -5,7 +5,7 @@
 #include <esp_now.h>
 #include <WiFi.h>
 
-#define CUSTOM_PIN_LAYOUT
+//#define CUSTOM_PIN_LAYOUT
 
 //datas that will be sent to the receiver
 typedef struct {
@@ -29,7 +29,7 @@ const uint64_t WRITE_ADDR_GRAB = 0x47E197009488;
 const uint64_t WRITE_ADDR_FLIP = 0xF71993500B07;
 const uint64_t WRITE_ADDR_WEDG = 0xe197c02702;
 uint64_t current_addr = WRITE_ADDR_GRAB;
-int rf_channel =76;
+int rf_channel = 76;
 
 //---------------------------------------ESP_NOW Variables
 //MAC robot hinge  C8:C9:A3:CB:33:F8
@@ -94,11 +94,11 @@ const int potStrLeftEnd = 3; //default 1024, reversed 0
 const int potAccForwardEnd = 3; // default 0, reversed 1024
 const int potAccBackEnd = 1020; //default 1024, reversed 0
 
-const int potStrRightStart = 455; //default 512
-const int potStrLeftStart = 448; //default 512
+const int potStrRightStart = 463; //default 512
+const int potStrLeftStart = 444; //default 512
 
-const int potAccForwardStart = 487; //default 512
-const int potAccBackStart = 499; //default 512
+const int potAccForwardStart = 479; //default 512
+const int potAccBackStart = 502; //default 512
 
 const int potLevUpStart = 420; //default 512
 const int potLevDownStart = 500; //default 512
@@ -125,11 +125,11 @@ const int potStrLeftEnd = 1020; //default 1024, reversed 0
 const int potAccForwardEnd = 1020; // default 0, reversed 1024
 const int potAccBackEnd = 3; //default 1024, reversed 0
 
-const int potStrRightStart = 486; //default 512
+const int potStrRightStart = 461; //default 512
 const int potStrLeftStart = 494; //default 512
 
-const int potAccForwardStart = 476; //default 512
-const int potAccBackStart = 470; //default 512
+const int potAccForwardStart = 475; //default 512
+const int potAccBackStart = 446; //default 512
 
 const int potLevUpStart = 465; //default 512
 const int potLevDownStart = 485; //default 512
@@ -182,6 +182,12 @@ enum bot_control {
 int current_bot = EGRAB;
 bool wpnSafetyCeck = true;
 bool wifi_remote = false;
+bool firing = false;
+unsigned long current_time = 0;
+unsigned long animation_millis_1 = 0;
+unsigned long animation_millis_2 = 0;
+bool topHold = false;
+bool leverMode = false;
 
 void setup() {
   //store_values(); // uncomment only to initialize mem
@@ -194,7 +200,7 @@ void setup() {
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, HIGH);
 
-//  Serial.begin(115200);
+  //Serial.begin(115200);
 
   //load_values()
 
@@ -202,46 +208,41 @@ void setup() {
 
 
   //TODO robot select on initalization
-  int robot_n = analogRead(modePot)/ 205;
+  int robot_n = analogRead(modePot) / 205;
   //Serial.println(mode_n);
-  
+
   switch (robot_n) {
-    case 0: //hinge esp
-    Serial.println("HINGE BOT");
+    case 0: 
+      Serial.println("HINGE BOT");
       wifi_remote = true;
       current_bot = HING;
-      activeAngle = 100;
-      restAngle = 33;
+      activeAngle = 120;
+      restAngle = 41;
       lowAngle = restAngle;
       break;
-    case 1: //grab esp
-    Serial.println("FLIPPER BOT");
+    case 1: 
+      Serial.println("FLIPPER BOT");
       current_bot = FLIP;
       current_addr = WRITE_ADDR_FLIP;
       rf_channel = 85;
-      
       break;
-     
-      break;
-    case 2: //flipper
-    Serial.println("WEDGE BOT");
+    case 2:
+      Serial.println("WEDGE BOT");
       current_bot = WEDG;
       current_addr = WRITE_ADDR_WEDG;
       activeAngle = 180;
       restAngle = 83;
       lowAngle = 30;
       break;
-     
-    case 3: // wedge bot
-     Serial.println("EGRAB BOT");
+    case 3:
+      Serial.println("EGRAB BOT");
       wifi_remote = true;
       current_bot = EGRAB;
       activeAngle = 830;
       restAngle = 0;
       lowAngle = restAngle;
       break;
-    case 4://grab ardu
-    
+    case 4:
       Serial.println("ARDU GRAB BOT");
       current_bot = GRAB;
       current_addr = WRITE_ADDR_GRAB;
@@ -250,7 +251,7 @@ void setup() {
     default:
       break;
   }
-  
+
   //radio.begin();
   //radio.setPALevel(RF24_PA_LOW);
   //radio.openWritingPipe(current_addr);
@@ -263,10 +264,10 @@ void setup() {
       return;
     }
     esp_now_register_send_cb(OnDataSent);
-    Serial.println(current_bot== HING);
-    if(current_bot== HING){
+    Serial.println(current_bot == HING);
+    if (current_bot == HING) {
       memcpy(peerInfo.peer_addr, hingeAddress, 6);
-    }else{
+    } else {
       memcpy(peerInfo.peer_addr, egrabAddress, 6);
     }
     peerInfo.channel = 0;
@@ -277,7 +278,7 @@ void setup() {
     }
     esp_now_register_recv_cb(OnDataRecv);
 
-  //---------------------------------------RF24 Setup
+    //---------------------------------------RF24 Setup
   } else {
     radio.begin();
     radio.setPALevel(RF24_PA_LOW);
@@ -289,9 +290,7 @@ void setup() {
 
 
 void loop() {
-//  int robot_n = analogRead(modePot)/ 205;
-//  Serial.println(robot_n);
-  
+  current_time = millis();
   //read pots values
   int strValue = analogRead(steerPot);
   int accValue = analogRead(accPot);
@@ -301,19 +300,9 @@ void loop() {
   leverValue_f = leverValue * 0.8 +  templeverValue * 0.2;
   leverValue = (int)leverValue_f;
 
-  int check_debug = leverValue;
-  if (check_debug > debug_max) {
-    debug_max = check_debug ;
-  }
-  if (check_debug < debug_min) {
-    debug_min = check_debug;
-  }
-  /*
-    Serial.print(debug_max);
-    Serial.print("\t");
-    Serial.print(debug_min);
-    Serial.print("\t");
-    Serial.println(debug_max-debug_min);
+
+
+
   //*/
   //read btns values
   bool setMode = false;//!digitalRead(lowSwitch);
@@ -321,31 +310,40 @@ void loop() {
   bool rightValue = !digitalRead(rightBtn);
   bool leftValue = !digitalRead(leftBtn);
   bool topValue = !digitalRead(topBtn);
-
+  
 
   bool drSet = false;
   bool expoSet = false;
   bool safetySet = false;
   bool wpnSet = false;
   bool mode5Set = false;
-
+  if (topValue && !topHold) {
+    topHold = true;
+    leverMode = !leverMode;
+  }
+  if (!topValue) {
+    topHold = false;
+  }
 
 
   //----------------------------------------------------WEAPON CODE
-    sentData.weaponArg = restAngle;
-    sentData.Fire = false;
+  sentData.weaponArg = restAngle;
+  sentData.Fire = false;
 
-  if (rightValue) {
-    sentData.weaponArg = restAngle;
-    sentData.Fire = true;
-  } else if (leftValue) {
+  
+
+  if (leverMode) {
     wpn = map(leverValue, potLevUpEnd, potLevDownEnd, activeAngle, restAngle);
     wpn = constrain(wpn, lowAngle, activeAngle);
     sentData.weaponArg = wpn;
     sentData.Fire = false;
   }
-  if(topValue){
+  if (rightValue) {
     sentData.weaponArg = activeAngle;
+    sentData.Fire = true;
+  }
+  if (leftValue) {
+    sentData.weaponArg = lowAngle;
   }
 
   sentData.weaponStrenght = PWMmax;
@@ -434,7 +432,7 @@ void loop() {
     //*/
 
   ///* uncomment here if you want car-like steering direction
-  
+
   //recorrect the data not to have more than max +PWM while non pivot-steering
   int left_pwm = constrain(forward + back + right - left, -PWMmax, PWMmax);
   int right_pwm = constrain(forward + back - right + left, -PWMmax, PWMmax);
@@ -446,7 +444,7 @@ void loop() {
     right_pwm = tmp;
   }
 
-  
+
   sentData.speedmotorLeft = left_pwm;
   sentData.speedmotorRight = right_pwm;
 
@@ -467,36 +465,56 @@ void loop() {
     }
   } else {
     esp_err_t result = -1;
-    if(current_bot == EGRAB){
+    if (current_bot == EGRAB) {
       result = esp_now_send(egrabAddress, (uint8_t *) &sentData, sizeof(sentData));
-    }else{
+    } else {
       result = esp_now_send(hingeAddress, (uint8_t *) &sentData, sizeof(sentData));
-     }
+    }
     if (result == ESP_OK) {
       //Serial.println("Sent with success");
     } else {
-      Serial.println("Error sending the data");
+      //Serial.println("Error sending the data");
     }
   }
 
 
+  //------------------- all debug prints
 
-  /* DEBUG PACKET
-    Serial.print("LPWM: ");
-    Serial.print(sentData.speedmotorLeft);
-    Serial.print("\t");
-    Serial.print("R PWM: ");
-    Serial.print(sentData.speedmotorRight);
-    Serial.print("\t");
-    Serial.print("WPN: ");
-    Serial.print(sentData.weaponArg);
-    Serial.print("\t");
-    Serial.print("FIRE: ");
-    Serial.println((int)sentData.Fire);
+  //DEBUG NOISE POT
+  /*
+    int check_debug = accValue;
+    if (check_debug > debug_max) {
+    debug_max = check_debug ;
+    }
+    if (check_debug < debug_min) {
+    debug_min = check_debug;
+    }
 
+    Serial.print(debug_max);
+    Serial.print("\t");
+    Serial.print(debug_min);
+    Serial.print("\t");
+    Serial.println(debug_max-debug_min);
     //*/
 
-  /*DEBUG INPUT
+  //DEBUG FOR SENT VALUES
+  ///* DEBUG PACKET
+  Serial.print("LPWM: ");
+  Serial.print(sentData.speedmotorLeft);
+  Serial.print("\t");
+  Serial.print("R PWM: ");
+  Serial.print(sentData.speedmotorRight);
+  Serial.print("\t");
+  Serial.print("WPN: ");
+  Serial.print(sentData.weaponArg);
+  Serial.print("\t");
+  Serial.print("FIRE: ");
+  Serial.println((int)sentData.Fire);
+
+  //*/
+
+  //DEBUG FOR READ VALUES
+  /*
     Serial.print("accpot: ");
     Serial.print(accValue);
     Serial.print("\t");
@@ -532,7 +550,10 @@ void loop() {
 
     Serial.print("modePot: ");
     Serial.println(modeValue);
+
     //*/
+  //  int robot_n = analogRead(modePot)/ 205;
+  //  Serial.println(robot_n);
 }
 
 void load_values() {

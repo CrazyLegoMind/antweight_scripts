@@ -25,12 +25,12 @@
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 typedef struct {
-  short speedmotorLeft;
-  short speedmotorRight;
-  short weaponStrenght;
-  char Fire;
-  short Angle;
-  short packetArg1;
+  int16_t speedmotorLeft;
+  int16_t speedmotorRight;
+  int16_t weaponStrenght;
+  int16_t Angle;
+  int16_t packetArg1;
+  int8_t Fire;
 }
 packet_t;
 
@@ -127,6 +127,7 @@ void setup() {
   }
   // Register for a callback function that will be called when data is received
   esp_now_register_recv_cb(OnDataRecv);
+  recWpnStr =0;
 }
 
 void loop() {

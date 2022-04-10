@@ -24,11 +24,12 @@ const uint64_t READ_ADDR = 0xe197c02702;//0xe197c02702
 RF24 radio(7, 8);
 
 typedef struct {
-  int speedmotorLeft;
-  int speedmotorRight;
-  int speedmotorWeapon;
-  bool Fire;
-  int Angle;
+  int16_t speedmotorLeft;
+  int16_t speedmotorRight;
+  int16_t weaponStrenght;
+  int16_t Angle;
+  int16_t weaponArg1;
+  int8_t Fire;
 }
 A_t;
 

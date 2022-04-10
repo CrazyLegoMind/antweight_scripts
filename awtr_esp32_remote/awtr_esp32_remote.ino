@@ -5,16 +5,16 @@
 #include <esp_now.h>
 #include <WiFi.h>
 
-//#define CUSTOM_PIN_LAYOUT
+#define CUSTOM_PIN_LAYOUT
 
 //datas that will be sent to the receiver
 typedef struct {
-  short speedmotorLeft;
-  short speedmotorRight;
-  short weaponStrenght;
-  char Fire;
-  short weaponArg;
-  short weaponAccel;
+  int16_t speedmotorLeft;
+  int16_t speedmotorRight;
+  int16_t weaponStrenght;
+  int16_t weaponArg;
+  int16_t weaponAccel;
+  int8_t Fire;
 }
 packet_t;
 
@@ -482,7 +482,7 @@ void loop() {
 
   //DEBUG NOISE POT
   /*
-    int check_debug = accValue;
+    int check_debug = strValue;
     if (check_debug > debug_max) {
     debug_max = check_debug ;
     }
@@ -498,7 +498,7 @@ void loop() {
     //*/
 
   //DEBUG FOR SENT VALUES
-  ///* DEBUG PACKET
+  /* DEBUG PACKET
   Serial.print("LPWM: ");
   Serial.print(sentData.speedmotorLeft);
   Serial.print("\t");

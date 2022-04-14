@@ -3,9 +3,9 @@
 
 //motori
 const int M1A = 5;//PHASE
-const int M1B = 10;
+const int M1B = 6;
 const int M2A = 9;//PHASE
-const int M2B = 6;
+const int M2B = 10;
 
 //arma
 const int M3rpm = 3;
@@ -36,10 +36,12 @@ typedef struct {
 A_t;
 
 volatile A_t sentData;
+unsigned long Reconnect_Time;
 unsigned long Current_Time;
 unsigned long Last_Data_Time;
 unsigned long FailSafe_Time = 800;
 bool FailSafe;
+bool reconnect = false;
 
 //RADIO
 
@@ -48,7 +50,7 @@ const uint64_t READ_ADDR = 0xF71993500B07;
 
 void setup() {
   //Serial.begin(115200);
-  Serial.println("Serial Ready");
+  //Serial.println("Serial Ready");
 
   //esc motori
   pinMode(M1A, OUTPUT);
@@ -82,23 +84,30 @@ void loop() {
       Last_Data_Time = millis();
       FailSafe = false;
       failsafe_released = false;
+      setM1speed(sentData.speedmotorLeft);
+      setM2speed(sentData.speedmotorRight);
+      handle_flipper(sentData.Fire);
     }
-    setM2speed(sentData.speedmotorLeft);
-    setM1speed(sentData.speedmotorRight);
-    handle_flipper(sentData.Fire);
+
   }
 
   while (!radio.available()) {
     Current_Time = millis();
+    if(!reconnect){
+      Reconnect_Time = Current_Time;
+      reconnect = true;
+    }
     if (Current_Time - Last_Data_Time >= FailSafe_Time) {
-      FailSafe = true;
+      failsafe();
+      if (Current_Time - Reconnect_Time >= FailSafe_Time * 3) {
+        radio.stopListening();
+        radio.startListening();
+        //Serial.println("reconnected");
+        reconnect = false;
+      }
 
       break;
     }
-  }
-
-  if (FailSafe) {
-    failsafe();
   }
 
   //DEBUG RECEIVED
@@ -207,26 +216,27 @@ void handle_flipper(bool fire) {
     setM3speed(0);
   }
   /*
-  Serial.print(Current_Time - activeStartTime >= activeMaxMillis);
-  Serial.print(Current_Time - activeStartTime >= activeMaxMillis + cooldownMillis);
-  Serial.print(" activate: ");
-  Serial.print(activate);
-  Serial.print("loaded: ");
-  Serial.print(loaded);
-  Serial.print("\t");
-  Serial.print("over: ");
-  Serial.print(overloaded);
-  Serial.print("\t");
-  Serial.print("start: ");
-  Serial.print(activeStartTime);
-  Serial.print("\t");
-  Serial.print("elapsed: ");
-  Serial.println(Current_Time - activeStartTime);
-  //*/
+    Serial.print(Current_Time - activeStartTime >= activeMaxMillis);
+    Serial.print(Current_Time - activeStartTime >= activeMaxMillis + cooldownMillis);
+    Serial.print(" activate: ");
+    Serial.print(activate);
+    Serial.print("loaded: ");
+    Serial.print(loaded);
+    Serial.print("\t");
+    Serial.print("over: ");
+    Serial.print(overloaded);
+    Serial.print("\t");
+    Serial.print("start: ");
+    Serial.print(activeStartTime);
+    Serial.print("\t");
+    Serial.print("elapsed: ");
+    Serial.println(Current_Time - activeStartTime);
+    //*/
 }
 
 
 void failsafe() {
+  //Serial.println("failsafing");
   setM1speed(0);
   setM2speed(0);
   if (!loaded) {

@@ -5,7 +5,15 @@
 #include <esp_now.h>
 #include <WiFi.h>
 
+//------------ turn on generic serial printing
+//#define DEBUG_PRINTS
+
+//------------ specific initialization or connection fail prints
+//#define DEBUG_FAILS
+
+//------------ chose the hardware input pins model
 #define CUSTOM_PIN_LAYOUT
+
 
 //datas that will be sent to the receiver
 typedef struct {
@@ -71,7 +79,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
 const int steerPot = 33;
 const int accPot = 35;
 const int leverPot = 34;
-const int modePot = 39;
+const int trimPot = 39;
 
 const int leftBtn = 25;
 const int rightBtn = 32;
@@ -110,7 +118,7 @@ const int potLevDownEnd = 645; //default 1024, reversed 0
 const int steerPot = 35;
 const int accPot = 33;
 const int leverPot = 34;
-const int modePot = 39;
+const int trimPot = 39;
 
 const int rightBtn = 0;
 const int leftBtn = 12;
@@ -141,7 +149,7 @@ const int potLevDownEnd = 650; //default 1024, reversed 0
 
 //customisable vars
 int PWMmax = 255;
-int expoMax = 190; //exp will be this/100
+int expoMax = 210; //exp will be this/100
 int analogReadMax = 1023;
 int analogRes = 10;
 
@@ -150,8 +158,8 @@ int analogRes = 10;
 int restAngle = 20;
 int activeAngle = 1023;
 int lowAngle = 0;
-int strExpoalpha = 115;
-int accExpoalpha = 115;
+int strExpoalpha = 180;
+int accExpoalpha = 120;
 int wpnAccel = 8;
 
 //variables for the sketch
@@ -162,7 +170,7 @@ int back = 0;
 int wpn = 0;
 int strPWMmax = PWMmax;
 int accPWMmax = PWMmax;
-int modeValue = 0;
+int trimValue = 0;
 int address = 0;
 bool memSetted = true;
 int rev_str = false;
@@ -188,6 +196,8 @@ unsigned long animation_millis_1 = 0;
 unsigned long animation_millis_2 = 0;
 bool topHold = false;
 bool leverMode = false;
+int temp_value_debug = 0;
+int temp_curve_debug = 0;
 
 void setup() {
   //store_values(); // uncomment only to initialize mem
@@ -199,20 +209,20 @@ void setup() {
   pinMode(topSwitch, INPUT_PULLUP);
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, HIGH);
-
-  //Serial.begin(115200);
-
+#ifdef DEBUG_PRINTS
+  Serial.begin(115200);
+#endif
   //load_values()
 
 
 
 
   //TODO robot select on initalization
-  int robot_n = analogRead(modePot) / 205;
-  //Serial.println(mode_n);
+  int robot_n = analogRead(trimPot) / 205;
+  Serial.println(robot_n);
 
   switch (robot_n) {
-    case 0: 
+    case 0:
       Serial.println("HINGE BOT");
       wifi_remote = true;
       current_bot = HING;
@@ -220,7 +230,7 @@ void setup() {
       restAngle = 41;
       lowAngle = restAngle;
       break;
-    case 1: 
+    case 1:
       Serial.println("FLIPPER BOT");
       current_bot = FLIP;
       current_addr = WRITE_ADDR_FLIP;
@@ -252,19 +262,16 @@ void setup() {
       break;
   }
 
-  //radio.begin();
-  //radio.setPALevel(RF24_PA_LOW);
-  //radio.openWritingPipe(current_addr);
-
   //---------------------------------------ESP NOW setup
   if (wifi_remote) {
     WiFi.mode(WIFI_STA);
     if (esp_now_init() != ESP_OK) {
+#ifdef DEBUG_FAILS
       Serial.println("Error initializing ESP-NOW");
+#endif
       return;
     }
     esp_now_register_send_cb(OnDataSent);
-    Serial.println(current_bot == HING);
     if (current_bot == HING) {
       memcpy(peerInfo.peer_addr, hingeAddress, 6);
     } else {
@@ -273,7 +280,9 @@ void setup() {
     peerInfo.channel = 0;
     peerInfo.encrypt = false;
     if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+#ifdef DEBUG_FAILS
       Serial.println("Failed to add peer");
+#endif
       return;
     }
     esp_now_register_recv_cb(OnDataRecv);
@@ -295,8 +304,8 @@ void loop() {
   int strValue = analogRead(steerPot);
   int accValue = analogRead(accPot);
   int templeverValue = analogRead(leverPot);
-  modeValue = analogRead(modePot);
-
+  trimValue = analogRead(trimPot);
+  //Serial.println(trimValue);
   leverValue_f = leverValue * 0.8 +  templeverValue * 0.2;
   leverValue = (int)leverValue_f;
 
@@ -310,7 +319,7 @@ void loop() {
   bool rightValue = !digitalRead(rightBtn);
   bool leftValue = !digitalRead(leftBtn);
   bool topValue = !digitalRead(topBtn);
-  
+
 
   bool drSet = false;
   bool expoSet = false;
@@ -330,7 +339,7 @@ void loop() {
   sentData.weaponArg = restAngle;
   sentData.Fire = false;
 
-  
+
 
   if (leverMode) {
     wpn = map(leverValue, potLevUpEnd, potLevDownEnd, activeAngle, restAngle);
@@ -396,8 +405,8 @@ void loop() {
   bool accExpo = false;
   if (expoSet) {
     //FIX MSSING POT
-    //strExpoalpha = map(TrimUpValue, 10, 1022, 100, expoMax);
-    //accExpoalpha = map(TrimDownValue, 10, 1022, 100, expoMax);
+    strExpoalpha = map(trimValue, 10, 1022, 100, expoMax);
+    accExpoalpha = map(trimValue, 10, 1022, 100, expoMax);
   }
   if (strExpoalpha > 100) {
     strExpo = true;
@@ -413,6 +422,7 @@ void loop() {
     int rightx = map(right, 0, strPWMmax, 0, 1000);
     right = pow(rightx / 1000.0f, strExpoalpha / 100.0f) * strPWMmax;
   }
+
   if (accExpo) {
     int forwardx = map(forward, 0, accPWMmax, 0, 1000);
     forward = pow(forwardx / 1000.0f, accExpoalpha / 100.0f) * accPWMmax;
@@ -420,6 +430,8 @@ void loop() {
     int backx = map(-back, 0, accPWMmax, 0, 1000);
     back = -pow(backx / 1000.0f, accExpoalpha / 100.0f) * accPWMmax;
   }
+
+
 
   /* comment here if you want car-like steering direction
     if (back < 0){ //correct the turning direction while go backward but not while pivot turning
@@ -461,7 +473,9 @@ void loop() {
 
   if (!wifi_remote) {
     if (!radio.write( &sentData, sizeof(sentData) )) {
+#ifdef DEBUG_FAILS
       Serial.println(F("failed"));
+#endif
     }
   } else {
     esp_err_t result = -1;
@@ -479,6 +493,7 @@ void loop() {
 
 
   //------------------- all debug prints
+
 
   //DEBUG NOISE POT
   /*
@@ -498,20 +513,20 @@ void loop() {
     //*/
 
   //DEBUG FOR SENT VALUES
-  /* DEBUG PACKET
-  Serial.print("LPWM: ");
-  Serial.print(sentData.speedmotorLeft);
-  Serial.print("\t");
-  Serial.print("R PWM: ");
-  Serial.print(sentData.speedmotorRight);
-  Serial.print("\t");
-  Serial.print("WPN: ");
-  Serial.print(sentData.weaponArg);
-  Serial.print("\t");
-  Serial.print("FIRE: ");
-  Serial.println((int)sentData.Fire);
+  /*
+    Serial.print("LPWM: ");
+    Serial.print(sentData.speedmotorLeft);
+    Serial.print("\t");
+    Serial.print("R PWM: ");
+    Serial.print(sentData.speedmotorRight);
+    Serial.print("\t");
+    Serial.print("WPN: ");
+    Serial.print(sentData.weaponArg);
+    Serial.print("\t");
+    Serial.print("FIRE: ");
+    Serial.println((int)sentData.Fire);
 
-  //*/
+    //*/
 
   //DEBUG FOR READ VALUES
   /*
@@ -548,12 +563,33 @@ void loop() {
     Serial.print(setMode);
     Serial.print("\t");
 
-    Serial.print("modePot: ");
-    Serial.println(modeValue);
+    Serial.print("trimPot: ");
+    Serial.println(trimValue);
 
     //*/
-  //  int robot_n = analogRead(modePot)/ 205;
-  //  Serial.println(robot_n);
+
+  //DEBUG EXPO CURVE
+  /*
+    Serial.print("left:");
+    Serial.print(left);
+    Serial.print(",");
+    Serial.print("expo:");
+    Serial.print(strExpoalpha);
+    Serial.print(",");
+    temp_value_debug += 3;
+    if (temp_value_debug > 255) {
+    temp_value_debug = 0;
+    }
+    Serial.print("value:");
+    Serial.print(temp_value_debug);
+    Serial.print(",");
+    int valuex = map(temp_value_debug, 0, strPWMmax, 0, 1000);
+    temp_curve_debug = pow(valuex / 1000.0f, strExpoalpha / 100.0f) * strPWMmax;
+    Serial.print("curve:");
+    Serial.print(temp_curve_debug);
+    Serial.println();
+    //*/
+  delay(10);
 }
 
 void load_values() {

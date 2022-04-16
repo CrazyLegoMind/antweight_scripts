@@ -12,7 +12,7 @@
 //#define DEBUG_FAILS
 
 //------------ chose the hardware input pins model
-#define CUSTOM_PIN_LAYOUT
+//#define CUSTOM_PIN_LAYOUT
 
 
 //datas that will be sent to the receiver
@@ -108,11 +108,11 @@ const int potStrLeftStart = 444; //default 512
 const int potAccForwardStart = 479; //default 512
 const int potAccBackStart = 502; //default 512
 
-const int potLevUpStart = 420; //default 512
-const int potLevDownStart = 500; //default 512
+const int potLevUpStart = 456; //default 512
+const int potLevDownStart = 481; //default 512
 
 const int potLevUpEnd = 280; //default 0, reversed 1024
-const int potLevDownEnd = 645; //default 1024, reversed 0
+const int potLevDownEnd = 644; //default 1024, reversed 0
 #else // GREEN and DEV REMOTE
 //standard remote
 const int steerPot = 35;
@@ -139,11 +139,11 @@ const int potStrLeftStart = 494; //default 512
 const int potAccForwardStart = 475; //default 512
 const int potAccBackStart = 446; //default 512
 
-const int potLevUpStart = 465; //default 512
+const int potLevUpStart = 460; //default 512
 const int potLevDownStart = 485; //default 512
 
-const int potLevUpEnd = 280; //default 0, reversed 1024
-const int potLevDownEnd = 650; //default 1024, reversed 0
+const int potLevUpEnd = 284; //default 0, reversed 1024
+const int potLevDownEnd = 645; //default 1024, reversed 0
 #endif
 
 
@@ -155,9 +155,11 @@ int analogRes = 10;
 
 //var that will be stored and retreived from
 //eprom mem
-int restAngle = 20;
-int activeAngle = 1023;
-int lowAngle = 0;
+int wpn_start = 0;
+int wpn_default = 20;
+int wpn_end = 1023;
+int wpn_range = 1023;
+
 int strExpoalpha = 180;
 int accExpoalpha = 120;
 int wpnAccel = 8;
@@ -201,7 +203,9 @@ int temp_curve_debug = 0;
 
 void setup() {
   //store_values(); // uncomment only to initialize mem
+  analogSetWidth(analogRes);
   analogReadResolution(analogRes);
+  analogSetAttenuation(ADC_11db);
   pinMode(rightBtn, INPUT_PULLUP);
   pinMode(leftBtn, INPUT_PULLUP);
   pinMode(topBtn, INPUT_PULLUP);
@@ -226,37 +230,44 @@ void setup() {
       Serial.println("HINGE BOT");
       wifi_remote = true;
       current_bot = HING;
-      activeAngle = 120;
-      restAngle = 41;
-      lowAngle = restAngle;
+      wpn_range = 180;
+      wpn_end = 10;
+      wpn_default = 146;
+      wpn_start = wpn_default;
       break;
     case 1:
       Serial.println("FLIPPER BOT");
       current_bot = FLIP;
       current_addr = WRITE_ADDR_FLIP;
+      wpn_range = 0;
       rf_channel = 85;
+      wpn_end = 0;
+      wpn_default = 0;
+      wpn_start = wpn_default;
       break;
     case 2:
       Serial.println("WEDGE BOT");
       current_bot = WEDG;
       current_addr = WRITE_ADDR_WEDG;
-      activeAngle = 180;
-      restAngle = 83;
-      lowAngle = 30;
+      wpn_range = 180;
+      wpn_end = 180;
+      wpn_default = 83;
+      wpn_start = 30;
       break;
     case 3:
       Serial.println("EGRAB BOT");
       wifi_remote = true;
       current_bot = EGRAB;
-      activeAngle = 830;
-      restAngle = 0;
-      lowAngle = restAngle;
+      wpn_range = 1023;
+      wpn_end = 830;
+      wpn_default = 0;
+      wpn_start = wpn_default;
       break;
     case 4:
       Serial.println("ARDU GRAB BOT");
       current_bot = GRAB;
       current_addr = WRITE_ADDR_GRAB;
-      lowAngle = restAngle;
+      wpn_start = wpn_default;
       break;
     default:
       break;
@@ -299,16 +310,19 @@ void setup() {
 
 
 void loop() {
-  current_time = millis();
   //read pots values
   int strValue = analogRead(steerPot);
+  delay(3);
   int accValue = analogRead(accPot);
+  delay(3);
   int templeverValue = analogRead(leverPot);
+  delay(3);
   trimValue = analogRead(trimPot);
-  //Serial.println(trimValue);
-  leverValue_f = leverValue * 0.8 +  templeverValue * 0.2;
-  leverValue = (int)leverValue_f;
-
+  delay(3);
+  current_time = millis();
+  //leverValue_f = leverValue * 0.8 +  templeverValue * 0.2;
+  //leverValue = (int)leverValue_f;
+  leverValue = templeverValue;
 
 
 
@@ -326,6 +340,7 @@ void loop() {
   bool safetySet = false;
   bool wpnSet = false;
   bool mode5Set = false;
+  
   if (topValue && !topHold) {
     topHold = true;
     leverMode = !leverMode;
@@ -336,23 +351,28 @@ void loop() {
 
 
   //----------------------------------------------------WEAPON CODE
-  sentData.weaponArg = restAngle;
+  sentData.weaponArg = wpn_default;
   sentData.Fire = false;
 
 
 
   if (leverMode) {
-    wpn = map(leverValue, potLevUpEnd, potLevDownEnd, activeAngle, restAngle);
-    wpn = constrain(wpn, lowAngle, activeAngle);
+    wpn = map(leverValue, potLevUpEnd, potLevDownEnd, wpn_end, wpn_start);
+    //Serial.print(wpn);
+    //Serial.print(" ");
+    wpn = constrain(wpn,
+                    wpn_start < wpn_end ? wpn_start : wpn_end ,
+                    wpn_start < wpn_end ? wpn_end : wpn_start );
+    //Serial.println(wpn);
     sentData.weaponArg = wpn;
-    sentData.Fire = false;
+  }
+
+  if (leftValue) {
+    sentData.weaponArg = wpn_start;
   }
   if (rightValue) {
-    sentData.weaponArg = activeAngle;
+    sentData.weaponArg = wpn_end;
     sentData.Fire = true;
-  }
-  if (leftValue) {
-    sentData.weaponArg = lowAngle;
   }
 
   sentData.weaponStrenght = PWMmax;
@@ -369,9 +389,7 @@ void loop() {
   }
 
   if (wpnSet) {
-    //FIX MSSING POT
-    //activeAngle = analogRead(TrimUp);
-    //restAngle = analogRead(TrimDown);
+    wpn_default = map(trimValue, 0, 1023, 0 ,wpn_range);
   }
 
 
@@ -497,18 +515,19 @@ void loop() {
 
   //DEBUG NOISE POT
   /*
-    int check_debug = strValue;
+    int check_debug = leverValue;
     if (check_debug > debug_max) {
     debug_max = check_debug ;
     }
     if (check_debug < debug_min) {
     debug_min = check_debug;
     }
-
+    Serial.print(check_debug );
+    Serial.print(", ");
     Serial.print(debug_max);
-    Serial.print("\t");
+    Serial.print(", ");
     Serial.print(debug_min);
-    Serial.print("\t");
+    Serial.print(", ");
     Serial.println(debug_max-debug_min);
     //*/
 
@@ -589,7 +608,6 @@ void loop() {
     Serial.print(temp_curve_debug);
     Serial.println();
     //*/
-  delay(10);
 }
 
 void load_values() {
@@ -600,7 +618,7 @@ void load_values() {
     delay(5);
     int activeAng_high = (int) EEPROM.read(address + 1);
     delay(5);
-    activeAngle = activeAng_high << 8 | activeAng_low ;
+    wpn_end = activeAng_high << 8 | activeAng_low ;
     //exponential coefficients for drive
     strExpoalpha = (int) EEPROM.read(address + 2);
     delay(5);
@@ -611,7 +629,7 @@ void load_values() {
     delay(5);
     int restAng_high = (int) EEPROM.read(address + 5);
     delay(5);
-    restAngle = restAng_high << 8 | restAng_low ;
+    wpn_default = restAng_high << 8 | restAng_low ;
     //weapon acceleration coefficient
     wpnAccel = (int) EEPROM.read(address+6);
   */
@@ -619,9 +637,9 @@ void load_values() {
 
 void store_values() {
   /*
-      EEPROM.update(address, activeAngle);
+      EEPROM.update(address, wpn_end);
       delay(5);
-      EEPROM.update(address + 1, activeAngle >> 8);
+      EEPROM.update(address + 1, wpn_end >> 8);
       delay(5);
 
       EEPROM.update(address + 2, strExpoalpha);
@@ -629,9 +647,9 @@ void store_values() {
       EEPROM.update(address + 3, accExpoalpha);
       delay(5);
 
-      EEPROM.update(address + 4, restAngle);
+      EEPROM.update(address + 4, wpn_default);
       delay(5);
-      EEPROM.update(address + 5, restAngle >> 8);
+      EEPROM.update(address + 5, wpn_default >> 8);
       delay(5);
 
       EEPROM.update(address + 6, wpnAccel);

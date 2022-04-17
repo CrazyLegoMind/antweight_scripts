@@ -8,8 +8,12 @@
 //------------ turn on generic serial printing
 //#define DEBUG_PRINTS
 
-//------------ specific initialization or connection fail prints
+//------------ specific cases of debug prints
 //#define DEBUG_FAILS
+//#define DEBUG_SENT
+//#define DEBUG_READS
+//#define DEBUG_EXPO
+//#define DEBUG_NOISE
 
 //------------ chose the hardware input pins model
 //#define CUSTOM_PIN_LAYOUT
@@ -160,8 +164,8 @@ int wpn_default = 20;
 int wpn_end = 1023;
 int wpn_range = 1023;
 
-int strExpoalpha = 180;
-int accExpoalpha = 120;
+int strExpoalpha = 100;
+int accExpoalpha = 100;
 int wpnAccel = 8;
 
 //variables for the sketch
@@ -223,7 +227,6 @@ void setup() {
 
   //TODO robot select on initalization
   int robot_n = analogRead(trimPot) / 205;
-  Serial.println(robot_n);
 
   switch (robot_n) {
     case 0:
@@ -232,7 +235,7 @@ void setup() {
       current_bot = HING;
       wpn_range = 180;
       wpn_end = 10;
-      wpn_default = 146;
+      wpn_default = 150;
       wpn_start = wpn_default;
       break;
     case 1:
@@ -514,7 +517,7 @@ void loop() {
 
 
   //DEBUG NOISE POT
-  /*
+#ifdef DEBUG_NOISE
     int check_debug = leverValue;
     if (check_debug > debug_max) {
     debug_max = check_debug ;
@@ -529,26 +532,46 @@ void loop() {
     Serial.print(debug_min);
     Serial.print(", ");
     Serial.println(debug_max-debug_min);
-    //*/
+#endif
 
   //DEBUG FOR SENT VALUES
-  /*
+#ifdef DEBUG_SENT
     Serial.print("LPWM: ");
     Serial.print(sentData.speedmotorLeft);
     Serial.print("\t");
     Serial.print("R PWM: ");
     Serial.print(sentData.speedmotorRight);
     Serial.print("\t");
+    int delta = 0;
+  
+    int sign_r = 1;
+    if(sentData.speedmotorRight != 0)
+     sign_r = sentData.speedmotorRight/sentData.speedmotorRight;
+    int sign_l = 1;
+    if(sentData.speedmotorLeft != 0)
+      sign_l = sentData.speedmotorLeft/sentData.speedmotorLeft;
+
+    int high_v = sentData.speedmotorRight*sign_r >= sentData.speedmotorLeft*sign_l ? sentData.speedmotorRight : sentData.speedmotorLeft;
+    int low_v = sentData.speedmotorRight*sign_r <= sentData.speedmotorLeft*sign_l ? sentData.speedmotorRight : sentData.speedmotorLeft;
+
+    if(sign_r == sign_l){
+      delta = high_v - low_v;
+    }else{
+      delta = sentData.speedmotorRight*sign_r + sentData.speedmotorLeft*sign_l;
+    }
+    Serial.print("delta: ");
+    Serial.print(delta);
+    Serial.print("\t");
+    
     Serial.print("WPN: ");
     Serial.print(sentData.weaponArg);
     Serial.print("\t");
     Serial.print("FIRE: ");
     Serial.println((int)sentData.Fire);
-
-    //*/
+#endif
 
   //DEBUG FOR READ VALUES
-  /*
+#ifdef DEBUG_READS
     Serial.print("accpot: ");
     Serial.print(accValue);
     Serial.print("\t");
@@ -584,11 +607,10 @@ void loop() {
 
     Serial.print("trimPot: ");
     Serial.println(trimValue);
-
-    //*/
+#endif
 
   //DEBUG EXPO CURVE
-  /*
+#ifdef DEBUG_EXPO
     Serial.print("left:");
     Serial.print(left);
     Serial.print(",");
@@ -607,7 +629,7 @@ void loop() {
     Serial.print("curve:");
     Serial.print(temp_curve_debug);
     Serial.println();
-    //*/
+#endif
 }
 
 void load_values() {

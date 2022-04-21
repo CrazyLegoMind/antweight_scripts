@@ -101,6 +101,10 @@ void loop() {
       failsafe();
       if (Current_Time - Reconnect_Time >= FailSafe_Time * 3) {
         radio.stopListening();
+        radio.begin();
+        radio.setChannel(channel);
+        radio.setPALevel(RF24_PA_LOW);
+        radio.openReadingPipe(1, READ_ADDR);
         radio.startListening();
         //Serial.println("reconnected");
         reconnect = false;

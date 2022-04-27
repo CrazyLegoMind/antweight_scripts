@@ -262,8 +262,8 @@ void setup() {
       wifi_remote = true;
       current_bot = EGRAB;
       wpn_range = 1023;
-      wpn_end = 830;
-      wpn_default = 0;
+      wpn_end = 829;
+      wpn_default = 100;
       wpn_start = wpn_default;
       break;
     case 4:

@@ -39,9 +39,10 @@ volatile A_t sentData;
 unsigned long Reconnect_Time;
 unsigned long Current_Time;
 unsigned long Last_Data_Time;
-unsigned long FailSafe_Time = 800;
+unsigned long FailSafe_Time = 200;
+unsigned long Recconect_Delay_Time = 190;
 bool FailSafe;
-bool reconnect = false;
+bool reconnect = true;
 
 //RADIO
 
@@ -82,6 +83,8 @@ void loop() {
     while (radio.available()) {
       radio.read( &sentData, sizeof(sentData) );
       Last_Data_Time = millis();
+      Reconnect_Time = millis();
+      reconnect = true;
       FailSafe = false;
       failsafe_released = false;
       setM1speed(sentData.speedmotorLeft);
@@ -99,7 +102,8 @@ void loop() {
     }
     if (Current_Time - Last_Data_Time >= FailSafe_Time) {
       failsafe();
-      if (Current_Time - Reconnect_Time >= FailSafe_Time * 3) {
+      //Serial.println("f");
+      if (Current_Time - Reconnect_Time >= Recconect_Delay_Time) {
         radio.stopListening();
         radio.begin();
         radio.setChannel(channel);

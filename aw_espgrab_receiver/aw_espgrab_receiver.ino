@@ -1,4 +1,5 @@
 #include <esp_now.h>
+#include <esp_wifi.h>
 #include <WiFi.h>
 
 
@@ -85,7 +86,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   lastPacketMillis = millis();
 }
 void setup() {
-//  Serial.begin(115200);
+  //Serial.begin(115200);
 //  Serial.println("Ready.");
   analogReadResolution(10);
   ledcAttachPin(IN1_gpio, PWM1_ch);
@@ -101,10 +102,13 @@ void setup() {
   ledcSetup(PWM4_ch, PWM_freq, PWM_res);
   ledcSetup(PWM5_ch, PWM_freq, PWM_res);
   ledcSetup(PWM6_ch, PWM_freq, PWM_res);
-  
+  setM2speed(0);
+  setM1speed(0);
+  setM3speed(0);
   // Set device as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
-
+  esp_wifi_set_channel(10, WIFI_SECOND_CHAN_NONE);
+  
   // Init ESP-NOW
   if (esp_now_init() != ESP_OK) {
     //Serial.println("Error initializing ESP-NOW");
@@ -117,7 +121,7 @@ void setup() {
   
   // Register peer
   memcpy(peerInfo.peer_addr, broadcastAddress, 6);
-  peerInfo.channel = 0;  
+  peerInfo.channel = 10;  
   peerInfo.encrypt = false;
   
   // Add peer        
@@ -140,8 +144,7 @@ void loop() {
   if(failsafe){
     setM2speed(0);
     setM1speed(0);
-//    setM3speed(0);
-    seek_angle_smooth(512, 8);
+    setM3speed(0);
   }else{
     setM2speed(recRpwm);
     setM1speed(recLpwm);
@@ -194,7 +197,10 @@ int setM3speed(int rpm) {
 }
 
 int seek_angle_smooth(int target_pos,int accel) {
-  if (target_pos < 0 || target_pos > 830) return 1;
+  if (target_pos < 0 || target_pos > 1023) {
+    setM3speed(0);
+    return 1;
+  }
   int wpn_current_pos = analogRead(weapPot);
 //  Serial.println("Pot: " + (String) wpn_current_pos);
   unsigned long wpn_current_time = millis();

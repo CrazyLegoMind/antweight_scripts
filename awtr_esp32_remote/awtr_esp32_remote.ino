@@ -3,10 +3,11 @@
 #include <EEPROM.h>
 #include <math.h>
 #include <esp_now.h>
+#include <esp_wifi.h>
 #include <WiFi.h>
 
 //------------ turn on generic serial printing
-//#define DEBUG_PRINTS
+#define DEBUG_PRINTS
 
 //------------ specific cases of debug prints
 //#define DEBUG_FAILS
@@ -262,7 +263,7 @@ void setup() {
       wifi_remote = true;
       current_bot = EGRAB;
       wpn_range = 1023;
-      wpn_end = 829;
+      wpn_end = 1023;
       wpn_default = 100;
       wpn_start = wpn_default;
       break;
@@ -288,10 +289,12 @@ void setup() {
     esp_now_register_send_cb(OnDataSent);
     if (current_bot == HING) {
       memcpy(peerInfo.peer_addr, hingeAddress, 6);
+      peerInfo.channel = 0;
     } else {
       memcpy(peerInfo.peer_addr, egrabAddress, 6);
+      esp_wifi_set_channel(10, WIFI_SECOND_CHAN_NONE);
+      peerInfo.channel = 10;
     }
-    peerInfo.channel = 0;
     peerInfo.encrypt = false;
     if (esp_now_add_peer(&peerInfo) != ESP_OK) {
 #ifdef DEBUG_FAILS
@@ -338,19 +341,20 @@ void loop() {
   bool topValue = !digitalRead(topBtn);
 
 
-  bool drSet = false;
-  bool expoSet = false;
+  bool drSet = !digitalRead(topSwitch);
+  bool expoSet = !digitalRead(lowSwitch);
   bool safetySet = false;
   bool wpnSet = false;
   bool mode5Set = false;
   
-  if (topValue && !topHold) {
+  if (topValue && !topHold && !drSet && !expoSet) {
     topHold = true;
     leverMode = !leverMode;
   }
   if (!topValue) {
     topHold = false;
   }
+  
 
 
   //----------------------------------------------------WEAPON CODE
@@ -404,8 +408,11 @@ void loop() {
   //setting dual rates
 
   if (drSet) {
-    //strPWMmax = map(TrimUpValue, 0, 1022, 0, PWMmax);
-    //accPWMmax = map(TrimDownValue, 0, 1022, 0, PWMmax);
+    if(topValue){
+      accPWMmax = map(trimValue, 0, 1022, 0, PWMmax);
+    }else{
+      strPWMmax = map(trimValue, 0, 1022, 0, PWMmax);
+    }
   }
 
   //map the value to useful pwm-friendly ones
@@ -426,8 +433,11 @@ void loop() {
   bool accExpo = false;
   if (expoSet) {
     //FIX MSSING POT
-    strExpoalpha = map(trimValue, 10, 1022, 100, expoMax);
-    accExpoalpha = map(trimValue, 10, 1022, 100, expoMax);
+    if(topValue){
+      accExpoalpha = map(trimValue, 10, 1022, 100, expoMax);
+    }else{
+      strExpoalpha = map(trimValue, 10, 1022, 100, expoMax);
+    }
   }
   if (strExpoalpha > 100) {
     strExpo = true;

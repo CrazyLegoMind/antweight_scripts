@@ -7,7 +7,7 @@
 #include <WiFi.h>
 
 //------------ turn on generic serial printing
-#define DEBUG_PRINTS
+//#define DEBUG_PRINTS
 
 //------------ specific cases of debug prints
 //#define DEBUG_FAILS
@@ -17,7 +17,7 @@
 //#define DEBUG_NOISE
 
 //------------ chose the hardware input pins model
-//#define CUSTOM_PIN_LAYOUT
+#define CUSTOM_PIN_LAYOUT
 
 
 //datas that will be sent to the receiver

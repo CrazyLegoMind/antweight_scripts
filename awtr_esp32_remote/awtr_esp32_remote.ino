@@ -161,7 +161,7 @@ int analogRes = 10;
 //var that will be stored and retreived from
 //eprom mem
 int wpn_start = 0;
-int wpn_default = 20;
+int wpn_default = 0;
 int wpn_end = 1023;
 int wpn_range = 1023;
 
@@ -271,7 +271,11 @@ void setup() {
       Serial.println("ARDU GRAB BOT");
       current_bot = GRAB;
       current_addr = WRITE_ADDR_GRAB;
-      wpn_start = wpn_default;
+      wpn_start = 30;
+      wpn_end = 1015;
+      wpn_range = 1023;
+      wpn_default = wpn_start;
+      
       break;
     default:
       break;

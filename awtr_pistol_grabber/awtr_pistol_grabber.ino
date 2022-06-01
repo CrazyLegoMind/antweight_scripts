@@ -181,7 +181,7 @@ void loop() {
   if (safetySet) {
     if(TrimUpValue <= 20) wpnSafetyCeck = true;
     if(wpnSafetyCeck){
-      sentData.weaponStrenght = map(TrimUpValue, 0, 1022, 0, PWMmax);
+      sentData.weaponStrenght = map(TrimUpValue, 0, 1010, 0, PWMmax);
     }
   }
 
@@ -190,7 +190,7 @@ void loop() {
     restAngle = analogRead(TrimDown);
   }
   if (wpn2Set) {
-    sentData.weaponStrenght = map(TrimUpValue, 0, 1022, 0, PWMmax);
+    sentData.weaponStrenght = map(TrimUpValue, 0, 1010, 0, PWMmax);
     wpnAccel = map(TrimDownValue, 0, 1022, 0, 100);
   }
 
@@ -207,8 +207,8 @@ void loop() {
   //setting dual rates
 
   if (drSet) {
-    strPWMmax = map(TrimUpValue, 0, 1022, 0, PWMmax);
-    accPWMmax = map(TrimDownValue, 0, 1022, 0, PWMmax);
+    strPWMmax = map(TrimUpValue, 0, 1010, 0, PWMmax);
+    accPWMmax = map(TrimDownValue, 0, 1010, 0, PWMmax);
   }
 
   //map the value to useful pwm-friendly ones
@@ -228,8 +228,8 @@ void loop() {
   bool strExpo = false;
   bool accExpo = false;
   if (expoSet) {
-    strExpoalpha = map(TrimUpValue, 10, 1022, 100, expoMax);
-    accExpoalpha = map(TrimDownValue, 10, 1022, 100, expoMax);
+    strExpoalpha = map(TrimUpValue, 10, 1010, 100, expoMax);
+    accExpoalpha = map(TrimDownValue, 10, 1010, 100, expoMax);
   }
   if (strExpoalpha > 100) {
     strExpo = true;
@@ -303,7 +303,7 @@ void loop() {
   if (!radio.write( &sentData, sizeof(sentData) )) {
     //Serial.println(F("failed"));
   }
-    
+
   /*
     Serial.print("B1 (modeValue): ");
     Serial.print(setMode);

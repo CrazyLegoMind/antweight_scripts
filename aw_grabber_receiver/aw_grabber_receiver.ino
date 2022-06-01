@@ -17,22 +17,23 @@ bool radioNumber = 1;
 RF24 radio(9, 10);
 
 typedef struct {
-  int speedmotor1;
-  int speedmotor2;
-  int speedmotor3;
-  bool Fire;
-  int Angle;
-  int wpnAccel;
+  int16_t speedmotor1;
+  int16_t speedmotor2;
+  int16_t speedmotor3;
+  int16_t Angle;
+  int16_t wpnAccel;
+  int8_t Fire;
 }
 A_t;
 volatile A_t sentData;
 
-
+unsigned long Reconnect_Time;
 unsigned long Current_Time;
 unsigned long Last_Data_Time;
-unsigned long FailSafe_Time = 800;
-bool FailSafe = true;
-
+unsigned long FailSafe_Time = 200;
+unsigned long Recconect_Delay_Time = 190;
+bool FailSafe;
+bool reconnect = true;
 
 const uint64_t READ_ADDR = 0x47E197009488;
 
@@ -79,25 +80,35 @@ void loop() {
     while (radio.available()) {
       radio.read( &sentData, sizeof(sentData) );
       Last_Data_Time = millis();
+      Reconnect_Time = millis();
+      reconnect = true;
       FailSafe = false;
+      setM1speed(sentData.speedmotor1);
+      setM2speed(sentData.speedmotor2);
+      seek_angle_smooth(sentData.Angle,sentData.wpnAccel);
+      delay(10);
     }
-    setM1speed(sentData.speedmotor1);
-    setM2speed(sentData.speedmotor2);
-    seek_angle_smooth(sentData.Angle,sentData.wpnAccel);
-    delay(10);
   }
-  while (!radio.available())
-  {
+  while (!radio.available()){
     Current_Time = millis();
-    if (Current_Time - Last_Data_Time > FailSafe_Time)
-    {
-      FailSafe = true;
+    if(!reconnect){
+      Reconnect_Time = Current_Time;
+      reconnect = true;
+    }
+    if (Current_Time - Last_Data_Time >= FailSafe_Time) {
+      failsafe();
+      //Serial.println("f");
+      if (Current_Time - Reconnect_Time >= Recconect_Delay_Time) {
+        radio.stopListening();
+        radio.begin();
+        radio.setPALevel(RF24_PA_LOW);
+        radio.openReadingPipe(1, READ_ADDR);
+        radio.startListening();
+        //Serial.println("reconnected");
+        reconnect = false;
+      }
       break;
     }
-  }
-  if (FailSafe)
-  {
-    failsafe();
   }
 
   /*
@@ -151,7 +162,6 @@ int setM3speed(int rpm) {
 }
 
 int seek_angle_smooth(int target_pos,int accel) {
-  if (target_pos < 0) return 1;
   int wpn_current_pos = analogRead(M3pot);
   
   unsigned long wpn_current_time = millis();
@@ -161,13 +171,18 @@ int seek_angle_smooth(int target_pos,int accel) {
   int gap = target_pos - wpn_current_pos;
   int wpn_pwm = 0;
   int accel_treshold = abs(wpn_prev_pwm)+accel;
-  
+  int overshoot = 0;
   if (abs(gap) > 20) {
-    wpn_pwm = target_pos -(wpn_current_pos+ wpn_speed*13);
+    overshoot = target_pos -(wpn_current_pos+ wpn_speed*14);
+    wpn_pwm = overshoot;
   }
   
-  if(accel> 0) wpn_pwm = constrain(wpn_pwm, -accel_treshold, accel_treshold);
+  if(accel> 0){
+    wpn_pwm = constrain(wpn_pwm, -accel_treshold, accel_treshold);
+  }
   wpn_pwm = constrain(wpn_pwm, -sentData.speedmotor3, sentData.speedmotor3);
+  wpn_pwm = constrain(wpn_pwm, -255, 255);
+  
   setM3speed(wpn_pwm);
 
   //prev sets for next iteration
@@ -177,16 +192,14 @@ int seek_angle_smooth(int target_pos,int accel) {
   wpn_prev_pwm = wpn_pwm;
   
   /*
-  //if(wpn_speed < 350) return 1;
-  Serial.print(target_pos);
-  Serial.print("\t");
-  Serial.print(wpn_current_pos);
-  Serial.print("\t");
+  Serial.print("delta:");
+  Serial.print(target_pos-wpn_current_pos);
+  Serial.print(",speed:");
   Serial.print(abs(wpn_speed) * 100.0f);
-  Serial.print("\t");
+  Serial.print(",pwm:");
   Serial.print(abs(wpn_pwm));
-  Serial.print("\t");
-  Serial.println(accel_treshold);
+  Serial.print(",ovs:");
+  Serial.println(overshoot);
   //*/
   return 0;
 }

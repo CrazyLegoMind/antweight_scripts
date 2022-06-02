@@ -3,9 +3,8 @@
 #include <PWMServo.h>
 
 //motori
-
-const int AIN1 = A0;//PHASE
-const int AIN2 = A1;//PHASE
+const int AIN1 = A1;//PHASE
+const int AIN2 = A0;//PHASE
 const int PWMA = 6;
 const int BIN1 = A3;//PHASE
 const int BIN2 = A2;//PHASE
@@ -25,11 +24,12 @@ const uint64_t READ_ADDR = 0xe197c02702;//0xe197c02702
 RF24 radio(7, 8);
 
 typedef struct {
-  int speedmotorLeft;
-  int speedmotorRight;
-  int speedmotorWeapon;
-  bool Fire;
-  int Angle;
+  int16_t speedmotorLeft;
+  int16_t speedmotorRight;
+  int16_t weaponStrenght;
+  int16_t Angle;
+  int16_t weaponArg1;
+  int8_t Fire;
 }
 A_t;
 
@@ -76,8 +76,8 @@ void loop() {
       Last_Data_Time = millis();
       FailSafe = false;
     }
-    setMBspeed(sentData.speedmotorLeft);
-    setMAspeed(sentData.speedmotorRight);
+    setMAspeed(sentData.speedmotorLeft);
+    setMBspeed(sentData.speedmotorRight);
     servoarma.write(sentData.Angle);
 
   }else{

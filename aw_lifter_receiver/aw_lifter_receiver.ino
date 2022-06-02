@@ -1,5 +1,7 @@
+#include <ESP32Servo.h>
+#include <ESP32Tone.h>
+#include <ESP32PWM.h>
 #include <esp_now.h>
-#include <esp_wifi.h>
 #include <WiFi.h>
 
 
@@ -7,22 +9,20 @@
 #define PWM2_ch 13
 #define PWM3_ch 14
 #define PWM4_ch 15
-#define PWM5_ch 10
-#define PWM6_ch 11
 
 #define PWM_res 8
 #define PWM_freq 400
 
-#define IN1_gpio 21
-#define IN2_gpio 22
-#define IN3_gpio 17
-#define IN4_gpio 16
-#define IN3w_gpio 0
-#define IN4w_gpio 4
+#define IN1_gpio 22
+#define IN2_gpio 21
+#define IN3_gpio 16
+#define IN4_gpio 17
 
-#define weapPot 33
+Servo weapServo;
 
-//MAC robot grab    C8:C9:A3:CB:70:54
+int weapServoPin = 26;
+
+//MAC robot C8:C9:A3:CB:33:F8
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 typedef struct {
@@ -42,14 +42,10 @@ bool failsafe = false;
 unsigned long failsafeMaxMillis = 200;
 unsigned long lastPacketMillis = 0;
 unsigned long currentWaitMillis = 0;
-int wpn_prev_pos = 0;
-int wpn_prev_time = 0;
-int wpn_prev_speed = 0;
-int wpn_prev_pwm = 0;
 
 int recLpwm = 0;
 int recRpwm = 0;
-int recWpnStr = 0;
+int recWpn = 0;
 bool recFire = false;
 int recAngle = 0;
 int recpckArg1 = 0;
@@ -79,7 +75,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   //salva dati in var globali
   recLpwm = recData.speedmotorLeft;
   recRpwm = recData.speedmotorRight;
-  recWpnStr = recData.weaponStrenght;
+  recWpn = recData.weaponStrenght;
   recFire = recData.Fire;
   recAngle = recData.Angle;
   recpckArg1 = recData.packetArg1;
@@ -87,28 +83,26 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
 }
 void setup() {
   //Serial.begin(115200);
-//  Serial.println("Ready.");
-  analogReadResolution(10);
+  //Serial.println("Ready.");
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
+  
   ledcAttachPin(IN1_gpio, PWM1_ch);
   ledcAttachPin(IN2_gpio, PWM2_ch);
   ledcAttachPin(IN3_gpio, PWM3_ch);
   ledcAttachPin(IN4_gpio, PWM4_ch);
-  ledcAttachPin(IN3w_gpio, PWM5_ch);
-  ledcAttachPin(IN4w_gpio, PWM6_ch);
 
   ledcSetup(PWM1_ch, PWM_freq, PWM_res);
   ledcSetup(PWM2_ch, PWM_freq, PWM_res);
   ledcSetup(PWM3_ch, PWM_freq, PWM_res);
   ledcSetup(PWM4_ch, PWM_freq, PWM_res);
-  ledcSetup(PWM5_ch, PWM_freq, PWM_res);
-  ledcSetup(PWM6_ch, PWM_freq, PWM_res);
-  setM2speed(0);
-  setM1speed(0);
-  setM3speed(0);
-  // Set device as a Wi-Fi Station
+  weapServo.setPeriodHertz(50);    // standard 50 hz servo
+  weapServo.attach(weapServoPin, 500, 2400); 
+   // Set device as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
-  esp_wifi_set_channel(10, WIFI_SECOND_CHAN_NONE);
-  
+
   // Init ESP-NOW
   if (esp_now_init() != ESP_OK) {
     //Serial.println("Error initializing ESP-NOW");
@@ -121,7 +115,7 @@ void setup() {
   
   // Register peer
   memcpy(peerInfo.peer_addr, broadcastAddress, 6);
-  peerInfo.channel = 10;  
+  peerInfo.channel = 0;  
   peerInfo.encrypt = false;
   
   // Add peer        
@@ -131,7 +125,6 @@ void setup() {
   }
   // Register for a callback function that will be called when data is received
   esp_now_register_recv_cb(OnDataRecv);
-  recWpnStr =0;
 }
 
 void loop() {
@@ -144,11 +137,11 @@ void loop() {
   if(failsafe){
     setM2speed(0);
     setM1speed(0);
-    setM3speed(0);
+    weapServo.write(90);
   }else{
-    setM2speed(recRpwm);
-    setM1speed(recLpwm);
-    seek_angle_smooth(recAngle,recpckArg1);
+    setM1speed(recRpwm);
+    setM2speed(recLpwm);
+    weapServo.write(recAngle);
   }
   delay(10);
 }
@@ -179,63 +172,5 @@ int setM2speed(int rpm) {
     ledcWrite(PWM3_ch, 255);
     ledcWrite(PWM4_ch, 255);
   }
-  return 0;
-}
-
-int setM3speed(int rpm) {
-  if (rpm < 0) {
-    ledcWrite(PWM5_ch, 0);
-    ledcWrite(PWM6_ch, -rpm);
-  } else if (rpm > 0) {
-    ledcWrite(PWM5_ch, rpm);
-    ledcWrite(PWM6_ch, 0);
-  } else if (rpm == 0) {
-    ledcWrite(PWM5_ch, 255);
-    ledcWrite(PWM6_ch, 255);
-  }
-  return 0;
-}
-
-int seek_angle_smooth(int target_pos,int accel) {
-  if (target_pos < 0 || target_pos > 1023) {
-    setM3speed(0);
-    return 1;
-  }
-  int wpn_current_pos = analogRead(weapPot);
-//  Serial.println("Pot: " + (String) wpn_current_pos);
-  unsigned long wpn_current_time = millis();
-  float pos_delta = wpn_current_pos - wpn_prev_pos;
-  unsigned long time_delta = wpn_current_time - wpn_prev_time;
-  float wpn_speed = pos_delta/time_delta;
-  int gap = target_pos - wpn_current_pos;
-  int wpn_pwm = 0;
-  int accel_treshold = abs(wpn_prev_pwm)+accel;
-  
-  if (abs(gap) > 20) {
-    wpn_pwm = target_pos -(wpn_current_pos+ wpn_speed*13);
-  }
-  
-  if(accel> 0) wpn_pwm = constrain(wpn_pwm, -accel_treshold, accel_treshold);
-  wpn_pwm = constrain(wpn_pwm, -recWpnStr, recWpnStr);
-  setM3speed(wpn_pwm);
-
-  //prev sets for next iteration
-  wpn_prev_pos = wpn_current_pos;
-  wpn_prev_time = wpn_current_time;
-  wpn_prev_speed = wpn_speed;
-  wpn_prev_pwm = wpn_pwm;
-  
-  /*
-  //if(wpn_speed < 350) return 1;
-  Serial.print(target_pos);
-  Serial.print("\t");
-  Serial.print(wpn_current_pos);
-  Serial.print("\t");
-  Serial.print(abs(wpn_speed) * 100.0f);
-  Serial.print("\t");
-  Serial.print(abs(wpn_pwm));
-  Serial.print("\t");
-  Serial.println(accel_treshold);
-  //*/
   return 0;
 }

@@ -3,9 +3,9 @@
 
 //motori
 const int M1A = 5;//PHASE
-const int M1B = 10;
+const int M1B = 6;
 const int M2A = 9;//PHASE
-const int M2B = 6;
+const int M2B = 10;
 
 //arma
 const int M3rpm = 3;
@@ -13,29 +13,38 @@ int WeaponAngle = 0;
 
 const int M3stop = 4;
 bool loaded = false;
-bool released = false;
+bool failsafe_released = false;
 
-RF24 radio(7, 8);                        
+//time based motor stop
+unsigned long overloadCurrentTime = 0;
+unsigned long activeStartTime = 0;
+unsigned long activeMaxMillis = 1000;
+unsigned long cooldownMillis = 1500;
+bool activeInitMillis = false;
+bool overloaded = false;
 
 typedef struct {
-  int speedmotor1;
-  int speedmotor2;
-  int speedmotor3;
-  bool Fire;
-  int Angle;
-  int weaponArg;
+  int16_t speedmotorLeft;
+  int16_t speedmotorRight;
+  int16_t weaponStrenght;
+  int16_t weaponArg;
+  int16_t weaponAccel;
+  int8_t Fire;
 }
 A_t;
 
 volatile A_t sentData;
+unsigned long Reconnect_Time;
 unsigned long Current_Time;
 unsigned long Last_Data_Time;
-unsigned long FailSafe_Time = 800;
+unsigned long FailSafe_Time = 200;
+unsigned long Recconect_Delay_Time = 190;
 bool FailSafe;
+bool reconnect = true;
 
 //RADIO
 
-const uint8_t channel =85;
+const uint8_t channel = 85;
 const uint64_t READ_ADDR = 0xF71993500B07;
 
 void setup() {
@@ -55,8 +64,8 @@ void setup() {
   //mosfet arma
   pinMode(M3rpm, OUTPUT);
   digitalWrite(M3rpm, LOW);
-  pinMode(M3stop,INPUT_PULLUP);
-  
+  pinMode(M3stop, INPUT_PULLUP);
+
   radio.begin();
   radio.setChannel(channel);
   radio.setPALevel(RF24_PA_LOW);
@@ -65,49 +74,66 @@ void setup() {
 }
 
 void loop() {
+
   loaded = !digitalRead(M3stop);
-  released = !loaded;
+
   if (radio.available()) {
     while (radio.available()) {
       radio.read( &sentData, sizeof(sentData) );
       Last_Data_Time = millis();
+      Reconnect_Time = millis();
+      reconnect = true;
       FailSafe = false;
+      failsafe_released = false;
+      setM1speed(sentData.speedmotorLeft);
+      setM2speed(sentData.speedmotorRight);
+      handle_flipper(sentData.Fire);
     }
-    setM2speed(sentData.speedmotor1);
-    setM1speed(sentData.speedmotor2);
-    handle_flipper(sentData.Fire,true);
+
   }
-  
-  while (!radio.available()){
+
+  while (!radio.available()) {
     Current_Time = millis();
-    if (Current_Time - Last_Data_Time > FailSafe_Time){
-      FailSafe = true;
+    if(!reconnect){
+      Reconnect_Time = Current_Time;
+      reconnect = true;
+    }
+    if (Current_Time - Last_Data_Time >= FailSafe_Time) {
+      failsafe();
+      //Serial.println("f");
+      if (Current_Time - Reconnect_Time >= Recconect_Delay_Time) {
+        radio.stopListening();
+        radio.begin();
+        radio.setChannel(channel);
+        radio.setPALevel(RF24_PA_LOW);
+        radio.openReadingPipe(1, READ_ADDR);
+        radio.startListening();
+        //Serial.println("reconnected");
+        reconnect = false;
+      }
+
       break;
     }
   }
-  
-  if (FailSafe){
-    failsafe();
-  }
 
+  //DEBUG RECEIVED
   /*
-    Serial.print("FailSafe: ");
-    Serial.print(FailSafe);
-    //Serial.print("\t millis: ");
-    //time = millis();
-    //Serial.print(time);
-    Serial.print("\t radio: ");
-    Serial.print(radio.available());
-    Serial.print("STOP: ");
-    Serial.print(loaded);
-    Serial.print("fire: ");
-    Serial.print(sentData.Fire);
-    Serial.print("PWM1: ");
-    Serial.print(sentData.speedmotor1);
-    Serial.print("PWM2: ");
-    Serial.println(sentData.speedmotor2);
-  //*/
+    Serial.print("LPWM: ");
+    Serial.print(sentData.speedmotorLeft);
+    Serial.print("\t");
+    Serial.print("R PWM: ");
+    Serial.print(sentData.speedmotorRight);
+    Serial.print("\t");
+    Serial.print("WPN: ");
+    Serial.print(sentData.weaponArg);
+    Serial.print("\t");
+    Serial.print("FIRE: ");
+    Serial.println((int)sentData.Fire);
+    //*/
+  //DEBUG COOLDOWN
+  ///*
 
+  //*/
 }
 
 int setM1speed(int rpm) {
@@ -153,37 +179,78 @@ int setM3speed(int rpm) {
 }
 
 
-void handle_flipper(bool fire,bool load){
-  if(load){
-    if(loaded){
-      if(fire){
-        setM3speed(255);
-      }else{
-        setM3speed(0);
-      }
-   }else{
-    setM3speed(255);
-   }
-    
-  }else{
-    if(loaded){
-       setM3speed(255);
-    }else{
-      setM3speed(0);
+
+void handle_flipper(bool fire) {
+  //controlla se devo sparare
+  overloadCurrentTime = millis();
+  bool activate = false;
+  if (loaded) {
+    if (fire) {
+      activate = true;
     }
+  } else {
+    activate = true;
   }
+
+  //azzera il cooldown se non devi sparare
+  //spara solo se sei entro il cooldown
+  //e segnati quando comincia sparare
+  if (activate) {//active
+    if (!overloaded) {//not overloadeded
+      if (!activeInitMillis) {
+        activeStartTime = overloadCurrentTime;
+        activeInitMillis  = true;
+      }
+
+      if (overloadCurrentTime - activeStartTime >= activeMaxMillis) {
+        overloaded = true;
+        setM3speed(0);
+      } else {
+        setM3speed(255);
+      }
+    } else { //overloaded
+      setM3speed(0);
+      if (overloadCurrentTime - activeStartTime >= activeMaxMillis + cooldownMillis) {
+        overloaded = false;
+        activeInitMillis  = false;
+      }
+
+    }
+  } else {//inactive
+    overloaded = false;
+    activeInitMillis  = false;
+    setM3speed(0);
+  }
+  /*
+    Serial.print(Current_Time - activeStartTime >= activeMaxMillis);
+    Serial.print(Current_Time - activeStartTime >= activeMaxMillis + cooldownMillis);
+    Serial.print(" activate: ");
+    Serial.print(activate);
+    Serial.print("loaded: ");
+    Serial.print(loaded);
+    Serial.print("\t");
+    Serial.print("over: ");
+    Serial.print(overloaded);
+    Serial.print("\t");
+    Serial.print("start: ");
+    Serial.print(activeStartTime);
+    Serial.print("\t");
+    Serial.print("elapsed: ");
+    Serial.println(Current_Time - activeStartTime);
+    //*/
 }
 
 
-void failsafe(){
+void failsafe() {
+  //Serial.println("failsafing");
   setM1speed(0);
   setM2speed(0);
-  if(!loaded){
-    released = true;
+  if (!loaded) {
+    failsafe_released = true;
   }
-  if(!released){
-    handle_flipper(sentData.Fire,false);
-  }else{
+  if (!failsafe_released) {
+    handle_flipper(true);
+  } else {
     setM3speed(0);
   }
 }

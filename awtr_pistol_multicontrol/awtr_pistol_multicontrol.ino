@@ -215,7 +215,7 @@ void loop() {
     }
     if (TrimUpValue >301 && TrimUpValue <600 && bot_current != FLIP){
       bot_current = FLIP;
-      rev_str = true;
+      rev_str = false;
       current_addr = WRITE_ADDR_FLIP;
       radio.setChannel(85);
       radio.openWritingPipe(current_addr);

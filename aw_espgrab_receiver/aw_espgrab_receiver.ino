@@ -146,8 +146,8 @@ void loop() {
     setM1speed(0);
     setM3speed(0);
   }else{
-    setM2speed(recRpwm);
-    setM1speed(recLpwm);
+    setM2speed(-recRpwm);
+    setM1speed(-recLpwm);
     seek_angle_smooth(recAngle,recpckArg1);
   }
   delay(10);

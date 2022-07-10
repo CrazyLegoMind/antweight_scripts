@@ -387,7 +387,7 @@ void loop() {
   }
 
   sentData.weaponStrenght = PWMmax;
-  sentData.weaponAccel = 8;
+  sentData.weaponAccel =20;
 
   if (safetySet) {
     //FIX MSSING POT
